@@ -286,7 +286,7 @@ final class AppState: ObservableObject {
                 TextPaster.paste(text)
             } else {
                 TextPaster.copy(text)
-                lastError = "Turn on Accessibility for Wisper so it can paste. Your text is on the clipboard — press ⌘V."
+                lastError = "Turn on Accessibility for Swell so it can paste. Your text is on the clipboard — press ⌘V."
                 Self.log.error("Accessibility not granted; copied transcript to clipboard instead of pasting")
             }
         } catch {

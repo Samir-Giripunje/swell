@@ -93,7 +93,7 @@ enum SelfTest {
 
     private static func reportWindowCloseBehavior() {
         report("before close: policy=\(policyName) visibleWindows=\(NSApp.windows.filter(\.isVisible).map(\.title))")
-        NSApp.windows.first { $0.title == "Wisper" }?.performClose(nil)
+        NSApp.windows.first { $0.title == "Swell" }?.performClose(nil)
         report("after close: policy=\(policyName)")
     }
 

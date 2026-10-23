@@ -41,7 +41,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(hint)
         menu.addItem(.separator())
 
-        menu.addItem(item("Open Wisper…", action: #selector(openWindow)))
+        menu.addItem(item("Open Swell…", action: #selector(openWindow)))
         menu.addItem(item("Load model when the app starts", action: #selector(toggleLoadAtStart), isOn: state.loadModelAtStart))
         menu.addItem(item("Launch at login", action: #selector(toggleLaunchAtLogin), isOn: state.isLaunchAtLoginEnabled))
         menu.addItem(.separator())
@@ -49,7 +49,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let unload = item("Unload model", action: #selector(unloadModel))
         unload.isEnabled = state.phase == .idle
         menu.addItem(unload)
-        menu.addItem(item("Quit Wisper", action: #selector(quit), key: "q"))
+        menu.addItem(item("Quit Swell", action: #selector(quit), key: "q"))
     }
 
     private func setVisible(_ visible: Bool) {
@@ -113,7 +113,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     @objc private func quit() { NSApp.terminate(nil) }
 
     private static func symbol(_ name: String, tint: NSColor? = nil) -> NSImage {
-        let image = NSImage(systemSymbolName: name, accessibilityDescription: "Wisper") ?? NSImage()
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: "Swell") ?? NSImage()
         guard let tint else {
             image.isTemplate = true
             return image

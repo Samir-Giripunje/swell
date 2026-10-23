@@ -1,13 +1,13 @@
 #!/bin/zsh
-# Packages build/Wisper.app into a drag-to-Applications DMG plus a SHA-256 checksum.
+# Packages build/Swell.app into a drag-to-Applications DMG plus a SHA-256 checksum.
 # Usage: VERSION=1.0.0 scripts/make_dmg.sh   (needs `brew install create-dmg`)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 VERSION="${VERSION:?set VERSION, e.g. VERSION=1.0.0}"
-APP="build/Wisper.app"
+APP="build/Swell.app"
 STAGING="build/dmg"
-DMG="build/Wisper-$VERSION.dmg"
+DMG="build/Swell-$VERSION.dmg"
 
 [[ -d "$APP" ]] || { echo "Missing $APP — run ./build.sh --no-install first"; exit 1; }
 
@@ -16,14 +16,14 @@ mkdir -p "$STAGING"
 cp -R "$APP" "$STAGING/"
 
 create-dmg \
-  --volname "Wisper $VERSION" \
+  --volname "Swell $VERSION" \
   --volicon Resources/AppIcon.icns \
   --background Resources/dmg-background.tiff \
   --window-pos 200 120 \
   --window-size 660 400 \
   --icon-size 128 \
-  --icon "Wisper.app" 180 190 \
-  --hide-extension "Wisper.app" \
+  --icon "Swell.app" 180 190 \
+  --hide-extension "Swell.app" \
   --app-drop-link 480 190 \
   --no-internet-enable \
   "$DMG" "$STAGING"

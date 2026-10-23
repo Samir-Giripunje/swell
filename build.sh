@@ -1,10 +1,10 @@
 #!/bin/zsh
-# Builds Wisper.app and installs it into /Applications.
+# Builds Swell.app and installs it into /Applications.
 # Usage: [VERSION=1.0.0] ./build.sh [--no-install]
 set -euo pipefail
 
 cd "$(dirname "$0")"
-APP_NAME="Wisper"
+APP_NAME="Swell"
 BUILD_DIR="build"
 APP="$BUILD_DIR/$APP_NAME.app"
 INSTALL_PATH="/Applications/$APP_NAME.app"

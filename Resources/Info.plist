@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Wisper</string>
+    <string>Swell</string>
     <key>CFBundleDisplayName</key>
-    <string>Wisper</string>
+    <string>Swell</string>
     <key>CFBundleIdentifier</key>
     <string>com.samirgiripunje.whisper</string>
     <key>CFBundleExecutable</key>
@@ -27,6 +27,6 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Wisper records your voice while you hold the hotkey and turns it into text.</string>
+    <string>Swell records your voice while you hold the hotkey and turns it into text.</string>
 </dict>
 </plist>

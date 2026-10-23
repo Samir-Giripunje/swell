@@ -84,7 +84,7 @@ private struct HeaderRow: View {
                 .resizable()
                 .frame(width: 52, height: 52)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Wisper").font(.title2.weight(.semibold))
+                Text("Swell").font(.title2.weight(.semibold))
                 Text("Hold \(state.hotkey.shortTitle), speak, then let go — your words are typed where your cursor is.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -122,7 +122,7 @@ private struct LoginItemNotice: View {
             Text(error).font(.caption).foregroundStyle(.red)
         } else if state.launchAtLoginStatus == .requiresApproval {
             HStack {
-                Text("macOS needs you to allow Wisper in Login Items.")
+                Text("macOS needs you to allow Swell in Login Items.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()

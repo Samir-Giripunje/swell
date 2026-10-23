@@ -55,7 +55,7 @@ let caption: [NSAttributedString.Key: Any] = [
     .foregroundColor: NSColor(calibratedWhite: 0.35, alpha: 1),
     .paragraphStyle: paragraph,
 ]
-"Drag Wisper into Applications".draw(in: NSRect(x: 0, y: 330, width: size.width, height: 30), withAttributes: title)
+"Drag Swell into Applications".draw(in: NSRect(x: 0, y: 330, width: size.width, height: 30), withAttributes: title)
 "Then open it and hold right ⌘ to dictate.".draw(in: NSRect(x: 0, y: 64, width: size.width, height: 20), withAttributes: caption)
 
 NSGraphicsContext.restoreGraphicsState()

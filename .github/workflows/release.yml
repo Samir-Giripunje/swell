@@ -43,7 +43,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" build/Wisper-*.dmg build/Wisper-*.dmg.sha256 \
-            --title "Wisper ${GITHUB_REF_NAME#v}" \
+          gh release create "$GITHUB_REF_NAME" build/Swell-*.dmg build/Swell-*.dmg.sha256 \
+            --title "Swell ${GITHUB_REF_NAME#v}" \
             --notes-file .github/release-notes.md \
             --generate-notes
