@@ -5,7 +5,7 @@
 <h1 align="center">Swell</h1>
 
 <p align="center">
-  <a href="../../releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Samir-Giripunje/swell-for-mac?include_prereleases"></a>
+  <a href="../../releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Samir-Giripunje/swell?include_prereleases"></a>
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-blue">
   <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-arm64-black">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-green"></a>
@@ -59,8 +59,8 @@ Logs: `/usr/bin/log show --last 10m --predicate 'subsystem == "com.samirgiripunj
 ## Build from source
 
 ```bash
-git clone https://github.com/Samir-Giripunje/swell-for-mac.git
-cd swell-for-mac
+git clone https://github.com/Samir-Giripunje/swell.git
+cd swell
 ./build.sh            # builds and installs /Applications/Swell.app
 ```
 
