@@ -32,7 +32,10 @@ enum SelfTest {
             return
         }
         await state.loadModel()
-        report("model=\(state.modelStatus)")
+        report("model=\(state.loadedModelID ?? "none") status=\(state.modelStatus)")
+        if let requested = requestedModel() {
+            await switchModel(to: requested, state: state)
+        }
 
         guard let textEdit = await openBlankTextEditDocument() else {
             report("FAIL could not open TextEdit")
@@ -56,6 +59,31 @@ enum SelfTest {
         report("DONE")
     }
 
+    private static func requestedModel() -> WhisperModel? {
+        let arguments = CommandLine.arguments
+        guard let index = arguments.firstIndex(of: "--model"), index + 1 < arguments.count else { return nil }
+        return WhisperModel.all.first { $0.id == arguments[index + 1] }
+    }
+
+    private static func switchModel(to model: WhisperModel, state: AppState) async {
+        let start = Date()
+        report("switching to \(model.id), downloaded=\(ModelStore.isDownloaded(model))")
+        state.selectModel(model, remember: false)
+        var lastReportedTenth = -1
+        while state.loadedModelID != model.id {
+            if case .failed(let message) = state.modelStatus {
+                report("FAIL switching model: \(message)")
+                return
+            }
+            if case .downloading(let fraction) = state.modelStatus, Int(fraction * 10) > lastReportedTenth {
+                lastReportedTenth = Int(fraction * 10)
+                report("downloading \(lastReportedTenth * 10)%")
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        report("switched to \(model.id) in \(Int(Date().timeIntervalSince(start)))s")
+    }
+
     private static func dictateOnce(state: AppState, trusted: Bool) async {
         if trusted { postRightCommand(down: true) } else { state.beginDictation() }
         try? await Task.sleep(for: .milliseconds(1700))
@@ -65,7 +93,7 @@ enum SelfTest {
 
     private static func reportWindowCloseBehavior() {
         report("before close: policy=\(policyName) visibleWindows=\(NSApp.windows.filter(\.isVisible).map(\.title))")
-        NSApp.windows.first { $0.title == "Whisper" }?.performClose(nil)
+        NSApp.windows.first { $0.title == "Wisper" }?.performClose(nil)
         report("after close: policy=\(policyName)")
     }
 

@@ -24,8 +24,6 @@ enum DictationLanguage: String, CaseIterable, Identifiable {
 }
 
 actor Transcriber {
-    static let modelName = "openai_whisper-tiny"
-    private static let modelFolderKey = "cachedModelFolder"
     // Neural Engine for the heavy encoder/decoder is the most power-efficient path;
     // the tiny mel-spectrogram step stays on CPU so the GPU never has to wake up.
     private static let computeOptions = ModelComputeOptions(
@@ -36,14 +34,19 @@ actor Transcriber {
 
     private var whisperKit: WhisperKit?
 
-    func load() async throws {
-        guard whisperKit == nil else { return }
-        let kit = try await WhisperKit(Self.config())
-        if let folder = kit.modelFolder {
-            UserDefaults.standard.set(folder.path, forKey: Self.modelFolderKey)
-        }
+    // Builds the new model before swapping, so the current one keeps working until then.
+    func load(from folder: URL) async throws {
+        let kit = try await WhisperKit(WhisperKitConfig(
+            modelFolder: folder.path,
+            tokenizerFolder: AppPaths.models,
+            computeOptions: Self.computeOptions,
+            verbose: false,
+            logLevel: .error
+        ))
         _ = try? await kit.transcribe(audioArray: [Float](repeating: 0, count: Int(AudioRecorder.sampleRate)))
+        let previous = whisperKit
         whisperKit = kit
+        await previous?.unloadModels()
     }
 
     func unload() async {
@@ -63,40 +66,10 @@ actor Transcriber {
         return Self.clean(results.map(\.text).joined(separator: " "))
     }
 
-    private static func config() -> WhisperKitConfig {
-        let modelsDirectory = AppPaths.models
-        if let cached = UserDefaults.standard.string(forKey: modelFolderKey),
-           FileManager.default.fileExists(atPath: cached) {
-            return WhisperKitConfig(
-                modelFolder: cached,
-                tokenizerFolder: modelsDirectory,
-                computeOptions: computeOptions,
-                verbose: false,
-                logLevel: .error
-            )
-        }
-        return WhisperKitConfig(
-            model: modelName,
-            downloadBase: modelsDirectory,
-            computeOptions: computeOptions,
-            verbose: false,
-            logLevel: .error
-        )
-    }
-
     // Whisper emits bracketed tags such as [BLANK_AUDIO] for silence or noise.
     private static func clean(_ text: String) -> String {
         text.replacingOccurrences(of: #"\[[^\]]*\]"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
-}
-
-enum AppPaths {
-    static let models: URL = {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let url = base.appendingPathComponent("Whisper/Models", isDirectory: true)
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
-    }()
 }

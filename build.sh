@@ -1,12 +1,16 @@
 #!/bin/zsh
-# Builds Whisper.app and installs it into /Applications.
+# Builds Wisper.app and installs it into /Applications.
+# Usage: [VERSION=1.0.0] ./build.sh [--no-install]
 set -euo pipefail
 
 cd "$(dirname "$0")"
-APP_NAME="Whisper"
+APP_NAME="Wisper"
 BUILD_DIR="build"
 APP="$BUILD_DIR/$APP_NAME.app"
 INSTALL_PATH="/Applications/$APP_NAME.app"
+VERSION="${VERSION:-$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || true)}"
+VERSION="${VERSION:-0.0.0}"
+BUILD_NUMBER="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
 
 swift build -c release --arch arm64
 
@@ -25,6 +29,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/arm64-apple-macosx/release/WhisperApp "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 # A stable certificate keeps macOS Microphone/Accessibility grants across rebuilds;
 # ad-hoc signatures change every build and macOS resets the permissions.

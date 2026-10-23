@@ -29,8 +29,12 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Model") {
-                ModelRow(state: state)
+            Section {
+                ForEach(WhisperModel.all) { ModelRow(model: $0, state: state) }
+            } header: {
+                Text("Model")
+            } footer: {
+                ModelFooter(state: state)
             }
 
             Section("Permissions") {
@@ -80,7 +84,7 @@ private struct HeaderRow: View {
                 .resizable()
                 .frame(width: 52, height: 52)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Whisper").font(.title2.weight(.semibold))
+                Text("Wisper").font(.title2.weight(.semibold))
                 Text("Hold \(state.hotkey.shortTitle), speak, then let go — your words are typed where your cursor is.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -118,7 +122,7 @@ private struct LoginItemNotice: View {
             Text(error).font(.caption).foregroundStyle(.red)
         } else if state.launchAtLoginStatus == .requiresApproval {
             HStack {
-                Text("macOS needs you to allow Whisper in Login Items.")
+                Text("macOS needs you to allow Wisper in Login Items.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -130,44 +134,89 @@ private struct LoginItemNotice: View {
 }
 
 private struct ModelRow: View {
+    let model: WhisperModel
+    @ObservedObject var state: AppState
+
+    private var isSelected: Bool { state.selectedModelID == model.id }
+    private var isDownloaded: Bool { state.downloadedModelIDs.contains(model.id) }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(model.name)
+                    Text(model.size).font(.caption).foregroundStyle(.secondary)
+                }
+                Text(model.detail).font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            trailing
+        }
+    }
+
+    @ViewBuilder
+    private var trailing: some View {
+        if isSelected {
+            switch state.modelStatus {
+            case .downloading(let fraction):
+                ProgressView(value: fraction).frame(width: 80)
+                Text("\(Int(fraction * 100))%").font(.caption.monospacedDigit()).frame(width: 34, alignment: .trailing)
+            case .loading:
+                ProgressView().controlSize(.small)
+                Text("Loading").font(.caption).foregroundStyle(.secondary)
+            case .loaded where state.loadedModelID == model.id:
+                Label("In use", systemImage: "checkmark").font(.caption).foregroundStyle(.green)
+            default:
+                Button("Load") { Task { await state.loadModel() } }
+            }
+        } else {
+            if isDownloaded {
+                Button("Use") { state.selectModel(model) }
+                Button {
+                    state.deleteModel(model)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .buttonStyle(.borderless)
+                .help("Delete \(model.name) (\(model.size))")
+            } else {
+                Button("Download") { state.selectModel(model) }
+            }
+        }
+    }
+}
+
+private struct ModelFooter: View {
     @ObservedObject var state: AppState
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Whisper tiny")
-                Text(statusText)
-                    .font(.caption)
-                    .foregroundStyle(statusColor)
-            }
+            Text(statusText).foregroundStyle(statusColor)
             Spacer()
-            switch state.modelStatus {
-            case .loading:
-                ProgressView().controlSize(.small)
-            case .loaded:
-                Button("Unload") { Task { await state.unloadModel() } }
-                    .disabled(state.phase != .idle)
-            case .unloaded, .failed:
-                Button("Load") { Task { await state.loadModel() } }
+            if state.loadedModelID != nil {
+                Button("Unload from memory") { Task { await state.unloadModel() } }
+                    .disabled(state.phase != .idle || state.modelStatus.isBusy)
+                    .controlSize(.small)
             }
         }
+        .font(.caption)
     }
 
     private var statusText: String {
         switch state.modelStatus {
         case .unloaded: "Not loaded — it loads the first time you dictate."
-        case .loading: "Loading… the first run downloads about 75 MB."
-        case .loaded: "Loaded and ready."
-        case .failed(let message): "Failed to load: \(message)"
+        case .downloading: "Downloading… the current model keeps working meanwhile."
+        case .loading: "Loading and optimising for the Neural Engine…"
+        case .loaded: "Ready. Models run fully on this Mac."
+        case .failed(let message): "Couldn't load the model: \(message)"
         }
     }
 
     private var statusColor: Color {
-        switch state.modelStatus {
-        case .loaded: .green
-        case .failed: .red
-        default: .secondary
-        }
+        if case .failed = state.modelStatus { return .red }
+        return .secondary
     }
 }
 

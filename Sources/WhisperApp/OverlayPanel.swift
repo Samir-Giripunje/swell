@@ -78,8 +78,8 @@ struct OverlayView: View {
                 WaveformBars(meter: state.meter)
             case .transcribing:
                 ThinkingDots()
-                if state.modelStatus == .loading {
-                    Text("Loading model…")
+                if state.loadedModelID == nil, state.modelStatus.isBusy {
+                    Text("Preparing model…")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white.opacity(0.85))
                 }

@@ -5,9 +5,17 @@ import ServiceManagement
 
 enum ModelStatus: Equatable {
     case unloaded
+    case downloading(Double)
     case loading
     case loaded
     case failed(String)
+
+    var isBusy: Bool {
+        switch self {
+        case .downloading, .loading: true
+        default: false
+        }
+    }
 }
 
 enum DictationPhase {
@@ -31,6 +39,8 @@ final class AppState: ObservableObject {
         static let hotkey = "hotkey"
         static let language = "language"
         static let microphoneUID = "microphoneUID"
+        static let selectedModel = "selectedModel"
+        static let legacyModelFolder = "cachedModelFolder"
     }
 
     private static let minimumRecordingSeconds = 0.3
@@ -57,6 +67,9 @@ final class AppState: ObservableObject {
     @Published private(set) var launchAtLoginStatus = LoginItem.status
     @Published private(set) var launchAtLoginError: String?
     @Published private(set) var modelStatus = ModelStatus.unloaded
+    @Published private(set) var selectedModelID: String
+    @Published private(set) var loadedModelID: String?
+    @Published private(set) var downloadedModelIDs: Set<String> = []
     @Published private(set) var phase = DictationPhase.idle
     @Published private(set) var lastTranscript: String?
     @Published private(set) var lastError: String?
@@ -69,7 +82,7 @@ final class AppState: ObservableObject {
     private let transcriber = Transcriber()
     let recorder = AudioRecorder()
     private let hotkeyMonitor = HotkeyMonitor()
-    private var loadTask: Task<Void, Error>?
+    private var loadTask: Task<Void, Never>?
     private var permissionTimer: Timer?
 
     private init() {
@@ -79,6 +92,9 @@ final class AppState: ObservableObject {
         hotkey = Hotkey(rawValue: defaults.string(forKey: Keys.hotkey) ?? "") ?? .rightCommand
         language = DictationLanguage(rawValue: defaults.string(forKey: Keys.language) ?? "") ?? .auto
         microphoneUID = defaults.string(forKey: Keys.microphoneUID) ?? AudioDevices.builtInInput()?.uid ?? ""
+        selectedModelID = WhisperModel.with(id: defaults.string(forKey: Keys.selectedModel) ?? "").id
+        Self.adoptLegacyTinyDownload()
+        downloadedModelIDs = Set(WhisperModel.all.filter(ModelStore.isDownloaded).map(\.id))
         configureCallbacks()
     }
 
@@ -123,30 +139,73 @@ final class AppState: ObservableObject {
         launchAtLoginStatus = LoginItem.status
     }
 
+    func selectModel(_ model: WhisperModel, remember: Bool = true) {
+        selectedModelID = model.id
+        if remember { UserDefaults.standard.set(model.id, forKey: Keys.selectedModel) }
+        Task { await loadModel() }
+    }
+
     func loadModel() async {
-        if let loadTask {
-            _ = try? await loadTask.value
-            return
+        while let loadTask { await loadTask.value }
+        let model = WhisperModel.with(id: selectedModelID)
+        guard loadedModelID != model.id else { return }
+        // The task clears loadTask itself, so anyone waiting on it sees nil the moment it finishes.
+        let task = Task { @MainActor in
+            defer { loadTask = nil }
+            do {
+                try await prepare(model)
+                loadedModelID = model.id
+                modelStatus = .loaded
+                Self.log.notice("Model loaded: \(model.id, privacy: .public)")
+            } catch {
+                modelStatus = .failed(error.localizedDescription)
+                Self.log.error("Model \(model.id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
-        guard modelStatus != .loaded else { return }
-        modelStatus = .loading
-        let task = Task { try await transcriber.load() }
         loadTask = task
-        do {
-            try await task.value
-            modelStatus = .loaded
-            Self.log.notice("Model loaded")
-        } catch {
-            modelStatus = .failed(error.localizedDescription)
-            Self.log.error("Model load failed: \(error.localizedDescription, privacy: .public)")
-        }
-        loadTask = nil
+        await task.value
+        if loadedModelID != selectedModelID, modelStatus == .loaded { await loadModel() }
     }
 
     func unloadModel() async {
         guard phase == .idle, loadTask == nil else { return }
         await transcriber.unload()
+        loadedModelID = nil
         modelStatus = .unloaded
+    }
+
+    func deleteModel(_ model: WhisperModel) {
+        guard model.id != selectedModelID, model.id != loadedModelID else { return }
+        do {
+            try ModelStore.delete(model)
+            downloadedModelIDs.remove(model.id)
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    private func prepare(_ model: WhisperModel) async throws {
+        if !ModelStore.isDownloaded(model) {
+            modelStatus = .downloading(0)
+            try await ModelStore.download(model) { fraction in
+                Task { @MainActor in
+                    if case .downloading = AppState.shared.modelStatus { AppState.shared.modelStatus = .downloading(fraction) }
+                }
+            }
+            downloadedModelIDs.insert(model.id)
+        }
+        modelStatus = .loading
+        try await transcriber.load(from: ModelStore.folder(for: model))
+    }
+
+    // Builds before model switching stored the tiny model's folder here; mark it as complete.
+    private static func adoptLegacyTinyDownload() {
+        let defaults = UserDefaults.standard
+        guard let path = defaults.string(forKey: Keys.legacyModelFolder) else { return }
+        if path == ModelStore.folder(for: .tiny).path, FileManager.default.fileExists(atPath: path) {
+            ModelStore.markComplete(.tiny)
+        }
+        defaults.removeObject(forKey: Keys.legacyModelFolder)
     }
 
     func requestMicrophone() async {
@@ -169,7 +228,7 @@ final class AppState: ObservableObject {
             Task { await requestMicrophone() }
             return
         }
-        if modelStatus != .loaded { Task { await loadModel() } }
+        if loadedModelID == nil { Task { await loadModel() } }
         do {
             let device = AudioDevices.inputs().first { $0.uid == microphoneUID }
             try recorder.start(device: device?.id)
@@ -212,8 +271,8 @@ final class AppState: ObservableObject {
 
     private func transcribeAndPaste(_ samples: [Float]) async {
         defer { phase = .idle }
-        await loadModel()
-        guard modelStatus == .loaded else {
+        if loadedModelID == nil { await loadModel() }
+        guard loadedModelID != nil else {
             lastError = "The Whisper model isn't loaded."
             return
         }
@@ -227,7 +286,7 @@ final class AppState: ObservableObject {
                 TextPaster.paste(text)
             } else {
                 TextPaster.copy(text)
-                lastError = "Turn on Accessibility for Whisper so it can paste. Your text is on the clipboard — press ⌘V."
+                lastError = "Turn on Accessibility for Wisper so it can paste. Your text is on the clipboard — press ⌘V."
                 Self.log.error("Accessibility not granted; copied transcript to clipboard instead of pasting")
             }
         } catch {
