@@ -2,7 +2,9 @@ import AppKit
 
 enum TextPaster {
     private static let vKeyCode: CGKeyCode = 9
-    private static let clipboardRestoreDelay: TimeInterval = 0.5
+    // A busy target app (e.g. an Electron app mid-render) can read the clipboard
+    // well after ⌘V is posted; restoring too early pastes the old clipboard.
+    private static let clipboardRestoreDelay: TimeInterval = 2
 
     static func paste(_ text: String) {
         let pasteboard = NSPasteboard.general
@@ -10,10 +12,11 @@ enum TextPaster {
 
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        let transcriptChangeCount = pasteboard.changeCount
         sendCommandV()
 
         DispatchQueue.main.asyncAfter(deadline: .now() + clipboardRestoreDelay) {
-            guard !savedItems.isEmpty else { return }
+            guard !savedItems.isEmpty, pasteboard.changeCount == transcriptChangeCount else { return }
             pasteboard.clearContents()
             pasteboard.writeObjects(savedItems)
         }

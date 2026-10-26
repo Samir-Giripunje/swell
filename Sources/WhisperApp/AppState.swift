@@ -84,6 +84,8 @@ final class AppState: ObservableObject {
     private let hotkeyMonitor = HotkeyMonitor()
     private var loadTask: Task<Void, Never>?
     private var permissionTimer: Timer?
+    private var isStartingRecording = false
+    private var endOnceStarted: (() -> Void)?
 
     private init() {
         let defaults = UserDefaults.standard
@@ -223,25 +225,37 @@ final class AppState: ObservableObject {
     }
 
     func beginDictation() {
-        guard phase == .idle else { return }
+        guard phase == .idle, !isStartingRecording else { return }
         guard microphoneStatus == .authorized else {
             Task { await requestMicrophone() }
             return
         }
         if loadedModelID == nil { Task { await loadModel() } }
+        isStartingRecording = true
+        endOnceStarted = nil
+        Task { await startRecording() }
+    }
+
+    private func startRecording() async {
         do {
-            let device = AudioDevices.inputs().first { $0.uid == microphoneUID }
-            try recorder.start(device: device?.id)
+            let (device, format) = try await recorder.start(microphoneUID: microphoneUID)
+            isStartingRecording = false
             lastError = nil
             phase = .recording
-            Self.log.notice("Recording started: \(device?.name ?? "system default", privacy: .public), \(self.recorder.inputFormat?.description ?? "unknown", privacy: .public)")
+            Self.log.notice("Recording started: \(device, privacy: .public), \(format.description, privacy: .public)")
+            endOnceStarted?()
         } catch {
+            isStartingRecording = false
             lastError = error.localizedDescription
             Self.log.error("Recording failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
     func finishDictation() {
+        if isStartingRecording {
+            endOnceStarted = { [weak self] in self?.finishDictation() }
+            return
+        }
         guard phase == .recording else { return }
         let samples = stopRecording()
         lastRecording = samples
@@ -257,6 +271,10 @@ final class AppState: ObservableObject {
     }
 
     private func cancelDictation(cause: String) {
+        if isStartingRecording {
+            endOnceStarted = { [weak self] in self?.cancelDictation(cause: cause) }
+            return
+        }
         guard phase == .recording else { return }
         _ = stopRecording()
         phase = .idle
@@ -284,6 +302,8 @@ final class AppState: ObservableObject {
             lastTranscript = text
             if Permissions.isAccessibilityTrusted {
                 TextPaster.paste(text)
+                let target = NSWorkspace.shared.frontmostApplication?.localizedName ?? "unknown app"
+                Self.log.notice("Pasted \(text.count) chars into \(target, privacy: .public)")
             } else {
                 TextPaster.copy(text)
                 lastError = "Turn on Accessibility for Swell so it can paste. Your text is on the clipboard — press ⌘V."
