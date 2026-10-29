@@ -5,36 +5,105 @@
   "$defs": {
     "Health": {
       "type": "object",
-      "required": ["protocol", "name", "model", "device", "cleanup"],
+      "required": [
+        "protocol",
+        "name",
+        "model",
+        "device",
+        "cleanup"
+      ],
       "properties": {
-        "protocol": { "const": 1 },
-        "name": { "type": "string", "minLength": 1 },
-        "model": { "type": "string", "minLength": 1 },
-        "device": { "enum": ["cuda", "cpu"] },
-        "cleanup": { "enum": ["off", "low", "medium", "high"] }
+        "protocol": {
+          "const": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "device": {
+          "enum": [
+            "cuda",
+            "cpu"
+          ]
+        },
+        "cleanup": {
+          "enum": [
+            "off",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
       },
       "additionalProperties": false
     },
     "Transcription": {
       "type": "object",
-      "required": ["text"],
+      "required": [
+        "text"
+      ],
       "properties": {
-        "text": { "type": "string" }
+        "text": {
+          "type": "string"
+        }
       },
       "additionalProperties": false
     },
     "Error": {
       "type": "object",
-      "required": ["error"],
+      "required": [
+        "error"
+      ],
       "properties": {
         "error": {
           "type": "object",
-          "required": ["code", "message"],
+          "required": [
+            "code",
+            "message"
+          ],
           "properties": {
-            "code": { "enum": ["bad_request", "unauthorized", "forbidden", "not_found", "too_large", "internal"] },
-            "message": { "type": "string" }
+            "code": {
+              "enum": [
+                "bad_request",
+                "unauthorized",
+                "forbidden",
+                "not_found",
+                "too_large",
+                "internal",
+                "unavailable"
+              ]
+            },
+            "message": {
+              "type": "string"
+            }
           },
           "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "RephraseRequest": {
+      "type": "object",
+      "required": [
+        "text",
+        "level"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "level": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
         }
       },
       "additionalProperties": false

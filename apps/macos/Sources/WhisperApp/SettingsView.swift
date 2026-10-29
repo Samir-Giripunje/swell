@@ -102,8 +102,9 @@ struct EngineSettingsView: View {
                 } header: {
                     Text("Rephrasing")
                 } footer: {
-                    Text(state.selectedMachine.map { "Done by \($0.name). When this Mac transcribes, text isn't rephrased." }
+                    Text((state.selectedMachine.map { "Done by \($0.name). When this Mac transcribes, text isn't rephrased." }
                         ?? "Done by your machine, so it applies only when a machine transcribes.")
+                        + " To correct text you typed, select it anywhere and press \(CorrectionController.shortcutTitle).")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

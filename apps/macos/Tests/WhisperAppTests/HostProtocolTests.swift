@@ -123,6 +123,18 @@ private final class StubProtocol: URLProtocol, @unchecked Sendable {
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "audio/wav")
     }
 
+    @Test func rephraseSendsJSON() async throws {
+        nonisolated(unsafe) var sent: URLRequest?
+        StubProtocol.respond = { request in
+            sent = request
+            return (200, Data(#"{"text":"Fixed."}"#.utf8))
+        }
+        #expect(try await client.rephrase("fixd", level: .high, timeout: 5) == "Fixed.")
+        let request = try #require(sent)
+        #expect(request.url?.absoluteString == "http://100.1.2.3:8765/v1/rephrase")
+        #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+    }
+
     @Test(arguments: [
         (status: 401, body: #"{"error":{"code":"unauthorized","message":"Wrong or missing token."}}"#, expected: HostError.rejected(status: 401, code: "unauthorized", message: "Wrong or missing token.")),
         (status: 500, body: #"{"error":{"code":"internal","message":"Transcription failed on the host."}}"#, expected: HostError.rejected(status: 500, code: "internal", message: "Transcription failed on the host.")),
@@ -154,5 +166,21 @@ private final class StubProtocol: URLProtocol, @unchecked Sendable {
         #expect(MachineStore.load(from: file) == machines)
         let permissions = try FileManager.default.attributesOfItem(atPath: file.path)[.posixPermissions] as? Int
         #expect(permissions == 0o600)
+    }
+}
+
+@Suite struct WordDiffTests {
+    @Test(arguments: [
+        (original: "the results was good", rewritten: "The results were good.", changed: [0, 2, 3]),
+        (original: "Looks fine to me.", rewritten: "Looks fine to me.", changed: []),
+        (original: "hey team", rewritten: "Hey team,\n\nI checked the logs.", changed: [0, 1, 2, 3, 4, 5]),
+    ])
+    func highlightsInsertedWords(original: String, rewritten: String, changed: [Int]) {
+        #expect(WordDiff.changedWords(from: original, to: rewritten) == Set(changed))
+    }
+
+    @Test func keepsTheRewrittenTextExactly() {
+        let rewritten = "Hey team,\n\nI checked  the logs."
+        #expect(String(WordDiff.highlighted(rewritten, comparedTo: "hey team i checked the logs").characters) == rewritten)
     }
 }

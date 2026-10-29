@@ -1,11 +1,14 @@
 import AppKit
 import Combine
+import SwiftUI
 
 @MainActor
-final class StatusItemController: NSObject, NSMenuDelegate {
+final class StatusItemController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     private static let transcribingFrameInterval: TimeInterval = 0.35
 
     private let state: AppState
+    private let correction: CorrectionController
+    private lazy var correctionPopover = makeCorrectionPopover()
     private let openMainWindow: () -> Void
     private var statusItem: NSStatusItem?
     private var subscriptions = Set<AnyCancellable>()
@@ -16,8 +19,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let recordingImage = StatusItemController.symbol("mic.fill", tint: .systemRed)
     private let transcribingImages = ["text.bubble", "text.bubble.fill"].map { StatusItemController.symbol($0) }
 
-    init(state: AppState, openMainWindow: @escaping () -> Void) {
+    init(state: AppState, correction: CorrectionController, openMainWindow: @escaping () -> Void) {
         self.state = state
+        self.correction = correction
         self.openMainWindow = openMainWindow
         super.init()
 
@@ -27,6 +31,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             .map { loadedModelID, engine, machines in AppState.isReady(loadedModelID: loadedModelID, engine: engine, machines: machines) }
             .removeDuplicates()
             .sink { [weak self] isReady in self?.setVisible(isReady) }
+            .store(in: &subscriptions)
+
+        correction.$phase
+            .map { $0 != nil }
+            .removeDuplicates()
+            .sink { [weak self] isShowing in self?.showCorrection(isShowing) }
             .store(in: &subscriptions)
 
         state.$phase
@@ -47,6 +57,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             menu.addItem(engineItem("This Mac", engine: .onDevice))
             state.machines.forEach { menu.addItem(engineItem($0.name, engine: .machine($0.id))) }
             menu.addItem(rephraseMenu())
+            let correct = item("Correct Selected Text", action: #selector(correctSelection), key: "r")
+            correct.keyEquivalentModifierMask = [.control, .option]
+            menu.addItem(correct)
             menu.addItem(.separator())
         }
 
@@ -131,6 +144,40 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let parent = NSMenuItem(title: "Rephrasing: \(state.rephraseLevel.title)", action: nil, keyEquivalent: "")
         parent.submenu = submenu
         return parent
+    }
+
+    // The popover drops from the menu bar icon, like a system extra. It closes when you click elsewhere.
+    private func makeCorrectionPopover() -> NSPopover {
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.delegate = self
+        let controller = NSHostingController(rootView: CorrectionView(controller: correction))
+        // The popover follows the view's size as it changes and stays attached to the icon.
+        controller.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = controller
+        return popover
+    }
+
+    private func showCorrection(_ isShowing: Bool) {
+        guard isShowing else {
+            if correctionPopover.isShown { correctionPopover.performClose(nil) }
+            return
+        }
+        guard let button = statusItem?.button else {
+            NSSound.beep()
+            correction.dismiss()
+            return
+        }
+        correctionPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        if correction.phase != nil { correction.dismiss() }
+    }
+
+    // Run once the menu has closed, so the copy goes to the app that owns the selection.
+    @objc private func correctSelection() {
+        DispatchQueue.main.async { [correction] in correction.start() }
     }
 
     @objc private func selectRephraseLevel(_ sender: NSMenuItem) {

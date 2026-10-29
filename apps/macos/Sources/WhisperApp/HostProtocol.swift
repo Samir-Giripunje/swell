@@ -138,6 +138,15 @@ struct HostClient {
         return transcription.text
     }
 
+    func rephrase(_ text: String, level: RephraseLevel, timeout: TimeInterval) async throws -> String {
+        var request = request("v1/rephrase", timeout: timeout)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["text": text, "level": level.rawValue])
+        let rephrased: HostTranscription = try await send(request)
+        return rephrased.text
+    }
+
     private func request(_ path: String, timeout: TimeInterval, query: [URLQueryItem] = []) -> URLRequest {
         var components = URLComponents(url: url.appendingPathComponent(path), resolvingAgainstBaseURL: false)
         if !query.isEmpty { components?.queryItems = query }
