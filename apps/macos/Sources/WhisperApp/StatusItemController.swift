@@ -46,6 +46,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         if !state.machines.isEmpty {
             menu.addItem(engineItem("This Mac", engine: .onDevice))
             state.machines.forEach { menu.addItem(engineItem($0.name, engine: .machine($0.id))) }
+            menu.addItem(rephraseMenu())
             menu.addItem(.separator())
         }
 
@@ -118,6 +119,23 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let item = item(title, action: #selector(selectEngine(_:)), isOn: state.engine == engine)
         item.representedObject = engine.rawValue
         return item
+    }
+
+    private func rephraseMenu() -> NSMenuItem {
+        let submenu = NSMenu()
+        for level in RephraseLevel.allCases {
+            let item = item(level.title, action: #selector(selectRephraseLevel(_:)), isOn: state.rephraseLevel == level)
+            item.representedObject = level.rawValue
+            submenu.addItem(item)
+        }
+        let parent = NSMenuItem(title: "Rephrasing: \(state.rephraseLevel.title)", action: nil, keyEquivalent: "")
+        parent.submenu = submenu
+        return parent
+    }
+
+    @objc private func selectRephraseLevel(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String, let level = RephraseLevel(rawValue: rawValue) else { return }
+        state.rephraseLevel = level
     }
 
     @objc private func selectEngine(_ sender: NSMenuItem) {

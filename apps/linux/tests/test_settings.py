@@ -7,13 +7,20 @@ from swell.settings import DEFAULT_MODEL, Settings, load_settings, save_setting,
 def test_reads_settings_written_by_whisper_dictate(tmp_path):
     path = tmp_path / "settings.json"
     path.write_text(json.dumps({"load_model": "large-v3-turbo", "startup_model": "large-v3-turbo", "cleanup": True, "serve": True, "device": "cuda"}))
-    assert load_settings(path) == Settings(load_model="large-v3-turbo", startup_model="large-v3-turbo", device="cuda", cleanup=True, serve=True)
+    assert load_settings(path) == Settings(load_model="large-v3-turbo", startup_model="large-v3-turbo", device="cuda", cleanup="medium", serve=True)
+
+
+def test_cleanup_switch_becomes_a_level(tmp_path):
+    path = tmp_path / "settings.json"
+    for stored, level in ((True, "medium"), (False, "off"), ("high", "high"), ("max", "off")):
+        path.write_text(json.dumps({"cleanup": stored}))
+        assert load_settings(path).cleanup == level
 
 
 def test_unknown_or_missing_values_fall_back_to_defaults(tmp_path):
     path = tmp_path / "settings.json"
     path.write_text(json.dumps({"load_model": "huge", "device": "tpu", "cleanup": "yes"}))
-    assert load_settings(path) == Settings(load_model=DEFAULT_MODEL, cleanup=False)
+    assert load_settings(path) == Settings(load_model=DEFAULT_MODEL, cleanup="off")
     assert load_settings(tmp_path / "missing.json") == Settings()
 
 

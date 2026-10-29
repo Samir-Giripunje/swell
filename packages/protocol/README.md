@@ -13,7 +13,7 @@ How one Swell app transcribes speech on another machine. A **host** (today: Swel
 Cheap; clients call it to test a machine and to decide, while you are still speaking, whether to fall back to on-device transcription.
 
 ```json
-{"protocol": 1, "name": "samir-Legion-5Pro-16ACH6H", "model": "large-v3-turbo", "device": "cuda", "cleanup": true}
+{"protocol": 1, "name": "samir-Legion-5Pro-16ACH6H", "model": "large-v3-turbo", "device": "cuda", "cleanup": "medium"}
 ```
 
 | Field | Meaning |
@@ -22,19 +22,31 @@ Cheap; clients call it to test a machine and to decide, while you are still spea
 | `name` | The host's machine name, shown in client settings. |
 | `model` | Whisper model the host transcribes with. |
 | `device` | `cuda` (GPU) or `cpu`. |
-| `cleanup` | Whether the host removes filler words and fixes punctuation before replying. |
+| `cleanup` | The host's rephrasing level when a request doesn't name one: `off`, `low`, `medium` or `high`. |
 
 ## `POST /v1/transcribe`
 
 Body: a mono 16-bit PCM WAV file (`Content-Type: audio/wav`), at most 50 MB. Any sample rate; the host resamples.
 
-Query: `language` is `auto` (default) or a Whisper language code such as `en`. English-only models always use `en`.
+Query:
+
+- `language` is `auto` (default) or a Whisper language code such as `en`. English-only models always use `en`.
+- `cleanup` is how much the host rephrases the transcript with its language model. Omit it to use the host's level from `/v1/health`.
+
+| `cleanup` | What changes |
+|---|---|
+| `off` | Nothing: Whisper's text as is. |
+| `low` | Filler sounds (um, uh, er, hmm) removed. Every other word stays as spoken; no language model. |
+| `medium` | Also false starts, repeated phrases and filler phrases (you know, basically). |
+| `high` | Rewritten into clear, well-formed sentences, with grammar fixed and run-ons split. Never adds content. |
+
+The host keeps the original transcript when its model fails, or strays too far from what was said.
 
 ```json
 {"text": "Can you check why the Docker build is failing on stage?"}
 ```
 
-`text` is final: transcribed and, if the host has cleanup on, cleaned. It is empty when the audio held no speech.
+`text` is final: transcribed, then rephrased at the requested level. It is empty when the audio held no speech.
 
 ## Errors
 
@@ -46,7 +58,7 @@ Any non-2xx response has this body:
 
 | Status | `code` | When |
 |---|---|---|
-| 400 | `bad_request` | Body missing or not decodable audio, or an unknown `language`. |
+| 400 | `bad_request` | Body missing or not decodable audio, or an unknown `language` or `cleanup`. |
 | 401 | `unauthorized` | Token missing or wrong. |
 | 403 | `forbidden` | Caller is not on the tailnet or loopback. |
 | 404 | `not_found` | Unknown path. |

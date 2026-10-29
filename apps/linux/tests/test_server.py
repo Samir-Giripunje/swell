@@ -12,12 +12,12 @@ TOKEN = "test-token"
 WAV = b"RIFF fake wav"
 
 
-def transcribe(wav: bytes, language: str, source: str) -> str:
+def transcribe(wav: bytes, language: str, cleanup: str | None, source: str) -> str:
     if wav == b"undecodable":
         raise server.ApiError(400, "bad_request", "Couldn't decode the audio.")
     if wav == b"crash":
         raise RuntimeError("CUDA out of memory")
-    return f"{len(wav)} bytes in {language} from {source}"
+    return f"{len(wav)} bytes in {language}, cleanup {cleanup or 'host'}, from {source}"
 
 
 @pytest.fixture
@@ -50,8 +50,9 @@ def test_health(host, protocol_schema):
 @pytest.mark.parametrize(
     ("path", "expected"),
     [
-        ("/v1/transcribe", "13 bytes in auto from 127.0.0.1"),
-        ("/v1/transcribe?language=en", "13 bytes in en from 127.0.0.1"),
+        ("/v1/transcribe", "13 bytes in auto, cleanup host, from 127.0.0.1"),
+        ("/v1/transcribe?language=en&cleanup=off", "13 bytes in en, cleanup off, from 127.0.0.1"),
+        ("/v1/transcribe?cleanup=high", "13 bytes in auto, cleanup high, from 127.0.0.1"),
     ],
 )
 def test_transcribe(host, protocol_schema, path, expected):
@@ -69,6 +70,7 @@ def test_transcribe(host, protocol_schema, path, expected):
         ("POST", "/transcribe", WAV, TOKEN, None, 404, "not_found"),
         ("POST", "/v1/transcribe", b"", TOKEN, None, 400, "bad_request"),
         ("POST", "/v1/transcribe?language=English", WAV, TOKEN, None, 400, "bad_request"),
+        ("POST", "/v1/transcribe?cleanup=max", WAV, TOKEN, None, 400, "bad_request"),
         ("POST", "/v1/transcribe", b"undecodable", TOKEN, None, 400, "bad_request"),
         ("POST", "/v1/transcribe", None, TOKEN, {"Content-Length": str(server.MAX_BODY_BYTES + 1)}, 413, "too_large"),
         ("POST", "/v1/transcribe", b"crash", TOKEN, None, 500, "internal"),
