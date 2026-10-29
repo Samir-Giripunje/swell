@@ -1,0 +1,112 @@
+{
+  "about": "Dictations where the speaker corrects themselves, or only sounds like it. Medium and High must keep what they meant: python apps/linux/scripts/eval_rephrasing.py. Patterns are case-insensitive regexes.",
+  "cases": [
+    {
+      "text": "Tell the kids I'll be home around six. I mean six thirty.",
+      "include": [
+        "(six[ -]thirty|6:30)"
+      ],
+      "exclude": [
+        "\\bI mean\\b",
+        "around six[.,]"
+      ]
+    },
+    {
+      "text": "Can you buy apples, bananas and oranges? Actually, skip the apples, we already have some.",
+      "include": [
+        "bananas",
+        "oranges"
+      ],
+      "exclude": [
+        "apples, bananas",
+        "skip the apples"
+      ]
+    },
+    {
+      "text": "Let's meet on Tuesday, no wait, Wednesday at the usual place.",
+      "include": [
+        "Wednesday",
+        "usual place"
+      ],
+      "exclude": [
+        "Tuesday",
+        "no wait"
+      ]
+    },
+    {
+      "text": "Send the report to Priya, sorry, to Rahul, and copy the whole team.",
+      "include": [
+        "Rahul",
+        "whole team"
+      ],
+      "exclude": [
+        "Priya",
+        "sorry"
+      ]
+    },
+    {
+      "text": "The deploy failed because of the database migration, scratch that, it was the expired API key.",
+      "include": [
+        "expired API key"
+      ],
+      "exclude": [
+        "database migration",
+        "scratch that"
+      ]
+    },
+    {
+      "text": "Um so the meeting is at three, uh no, at four, and bring the uh slides.",
+      "include": [
+        "four",
+        "slides"
+      ],
+      "exclude": [
+        "three",
+        "\\bum\\b",
+        "\\buh\\b"
+      ]
+    },
+    {
+      "text": "I actually think we should ship it on Monday, the tests look solid.",
+      "include": [
+        "Monday"
+      ],
+      "exclude": []
+    },
+    {
+      "text": "I mean it, this is the last time we skip the tests before a release.",
+      "include": [
+        "last time we skip the tests"
+      ],
+      "exclude": []
+    },
+    {
+      "text": "So the results was good mostly but the ranking still struggle with short queries.",
+      "include": [
+        "ranking",
+        "short queries"
+      ],
+      "exclude": []
+    },
+    {
+      "text": "Um so basically I uh pushed the fix to staging and uh it looks fine now.",
+      "include": [
+        "pushed the fix to staging",
+        "looks fine"
+      ],
+      "exclude": [
+        "\\bum\\b",
+        "\\buh\\b"
+      ]
+    },
+    {
+      "text": "Can you review my PR before lunch? It touches the auth middleware and the session store.",
+      "include": [
+        "review my PR before lunch",
+        "auth middleware",
+        "session store"
+      ],
+      "exclude": []
+    }
+  ]
+}
