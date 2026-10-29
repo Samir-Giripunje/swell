@@ -21,6 +21,9 @@ enum DictationLanguage: String, CaseIterable, Identifiable {
         case .english: "en"
         }
     }
+
+    // The `language` query parameter of the host protocol.
+    var hostCode: String { whisperCode ?? "auto" }
 }
 
 actor Transcriber {

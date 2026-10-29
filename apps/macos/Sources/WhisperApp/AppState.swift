@@ -40,11 +40,14 @@ final class AppState: ObservableObject {
         static let language = "language"
         static let microphoneUID = "microphoneUID"
         static let selectedModel = "selectedModel"
+        static let engine = "engine"
         static let legacyModelFolder = "cachedModelFolder"
     }
 
     private static let minimumRecordingSeconds = 0.3
     private static let permissionPollInterval: TimeInterval = 2
+    // Long enough for a machine on the tailnet, short enough that falling back feels instant.
+    private static let reachabilityTimeout: TimeInterval = 1.5
     private static let log = Logger(subsystem: "com.samirgiripunje.whisper", category: "dictation")
 
     @Published var loadModelAtStart: Bool {
@@ -63,6 +66,16 @@ final class AppState: ObservableObject {
     @Published var microphoneUID: String {
         didSet { UserDefaults.standard.set(microphoneUID, forKey: Keys.microphoneUID) }
     }
+
+    @Published var engine: Engine {
+        didSet { UserDefaults.standard.set(engine.rawValue, forKey: Keys.engine) }
+    }
+    @Published private(set) var machines = MachineStore.load()
+    @Published private(set) var machineStatus: [UUID: MachineStatus] = [:]
+    /// Set while a pairing link waits for the user to confirm it in Settings.
+    @Published var pendingPairing: PairingLink?
+    /// The machine transcribing the current dictation, shown in the on-screen pill.
+    @Published private(set) var transcribingMachineName: String?
 
     @Published private(set) var launchAtLoginStatus = LoginItem.status
     @Published private(set) var launchAtLoginError: String?
@@ -86,6 +99,7 @@ final class AppState: ObservableObject {
     private var permissionTimer: Timer?
     private var isStartingRecording = false
     private var endOnceStarted: (() -> Void)?
+    private var reachability: (machine: Machine, client: HostClient, probe: Task<MachineStatus, Error>)?
 
     private init() {
         let defaults = UserDefaults.standard
@@ -95,9 +109,24 @@ final class AppState: ObservableObject {
         language = DictationLanguage(rawValue: defaults.string(forKey: Keys.language) ?? "") ?? .auto
         microphoneUID = defaults.string(forKey: Keys.microphoneUID) ?? AudioDevices.builtInInput()?.uid ?? ""
         selectedModelID = WhisperModel.with(id: defaults.string(forKey: Keys.selectedModel) ?? "").id
+        engine = Engine(rawValue: defaults.string(forKey: Keys.engine) ?? "")
         Self.adoptLegacyTinyDownload()
         downloadedModelIDs = Set(WhisperModel.all.filter(ModelStore.isDownloaded).map(\.id))
+        if case .machine(let id) = engine, !machines.contains(where: { $0.id == id }) { engine = .onDevice }
         configureCallbacks()
+    }
+
+    var selectedMachine: Machine? {
+        guard case .machine(let id) = engine else { return nil }
+        return machines.first { $0.id == id }
+    }
+
+    /// Ready to dictate: a remote machine is chosen, or the on-device model is loaded.
+    var isReady: Bool { Self.isReady(loadedModelID: loadedModelID, engine: engine, machines: machines) }
+
+    nonisolated static func isReady(loadedModelID: String?, engine: Engine, machines: [Machine]) -> Bool {
+        guard loadedModelID == nil, case .machine(let id) = engine else { return loadedModelID != nil }
+        return machines.contains { $0.id == id }
     }
 
     var isLaunchAtLoginEnabled: Bool {
@@ -115,6 +144,60 @@ final class AppState: ObservableObject {
         if microphoneStatus == .notDetermined { Task { await requestMicrophone() } }
         pollPermissionsUntilGranted()
         if loadModelAtStart { Task { await loadModel() } }
+        machines.forEach { machine in Task { await checkMachine(machine.id) } }
+    }
+
+    // MARK: Machines
+
+    /// Pairing the same address again replaces its name and token, so a fresh link fixes a rotated token.
+    func addMachine(_ link: PairingLink) throws {
+        let id = machines.first { $0.url == link.url }?.id ?? UUID()
+        var updated = machines.filter { $0.id != id }
+        updated.append(Machine(id: id, name: link.name, url: link.url, token: link.token))
+        try MachineStore.save(updated)
+        machines = updated
+        engine = .machine(id)
+        pendingPairing = nil
+        Task { await checkMachine(id) }
+    }
+
+    func removeMachine(_ id: UUID) {
+        let updated = machines.filter { $0.id != id }
+        do {
+            try MachineStore.save(updated)
+        } catch {
+            lastError = "Couldn't remove the machine: \(error.localizedDescription)"
+            return
+        }
+        if engine == .machine(id) { engine = .onDevice }
+        machines = updated
+        machineStatus[id] = nil
+    }
+
+    func checkMachine(_ id: UUID) async {
+        guard let machine = machines.first(where: { $0.id == id }) else { return }
+        let client = HostClient(url: machine.url, token: machine.token)
+        machineStatus[id] = .checking
+        do {
+            machineStatus[id] = try await Self.measureHealth(client, timeout: Self.reachabilityTimeout * 2)
+        } catch {
+            machineStatus[id] = .offline(error.localizedDescription)
+        }
+    }
+
+    private static func measureHealth(_ client: HostClient, timeout: TimeInterval) async throws -> MachineStatus {
+        let start = Date()
+        let health = try await client.health(timeout: timeout)
+        return .online(health, milliseconds: Int(Date().timeIntervalSince(start) * 1000))
+    }
+
+    // Starts while the user is still speaking, so by the time they let go we know whether to fall back.
+    private func probeSelectedMachine() {
+        reachability?.probe.cancel()
+        reachability = nil
+        guard let machine = selectedMachine else { return }
+        let client = HostClient(url: machine.url, token: machine.token)
+        reachability = (machine, client, Task { try await Self.measureHealth(client, timeout: Self.reachabilityTimeout) })
     }
 
     func refreshSystemStatus() {
@@ -230,7 +313,8 @@ final class AppState: ObservableObject {
             Task { await requestMicrophone() }
             return
         }
-        if loadedModelID == nil { Task { await loadModel() } }
+        probeSelectedMachine()
+        if loadedModelID == nil, selectedMachine == nil { Task { await loadModel() } }
         isStartingRecording = true
         endOnceStarted = nil
         Task { await startRecording() }
@@ -277,6 +361,8 @@ final class AppState: ObservableObject {
         }
         guard phase == .recording else { return }
         _ = stopRecording()
+        reachability?.probe.cancel()
+        reachability = nil
         phase = .idle
         Self.log.notice("Recording cancelled by another key: \(cause, privacy: .public)")
     }
@@ -288,15 +374,13 @@ final class AppState: ObservableObject {
     }
 
     private func transcribeAndPaste(_ samples: [Float]) async {
-        defer { phase = .idle }
-        if loadedModelID == nil { await loadModel() }
-        guard loadedModelID != nil else {
-            lastError = "The Whisper model isn't loaded."
-            return
+        defer {
+            phase = .idle
+            transcribingMachineName = nil
         }
         do {
             let start = Date()
-            let text = try await transcriber.transcribe(samples, language: language)
+            let text = try await transcribe(samples)
             Self.log.notice("Transcribed \(text.count) chars in \(Date().timeIntervalSince(start), format: .fixed(precision: 2))s")
             guard !text.isEmpty else { return }
             lastTranscript = text
@@ -315,6 +399,29 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func transcribe(_ samples: [Float]) async throws -> String {
+        if let (machine, client, probe) = reachability {
+            reachability = nil
+            transcribingMachineName = machine.name
+            do {
+                machineStatus[machine.id] = try await probe.value
+                return try await client.transcribe(samples, language: language, timeout: Self.remoteTimeout(forSamples: samples.count))
+            } catch {
+                machineStatus[machine.id] = .offline(error.localizedDescription)
+                Self.log.error("\(machine.name, privacy: .public) failed, transcribing on this Mac: \(error.localizedDescription, privacy: .public)")
+                transcribingMachineName = nil
+            }
+        }
+        if loadedModelID == nil { await loadModel() }
+        guard loadedModelID != nil else { throw TranscriptionError.modelNotLoaded }
+        return try await transcriber.transcribe(samples, language: language)
+    }
+
+    // Generous: the host transcribes and then cleans up the text with a language model.
+    static func remoteTimeout(forSamples count: Int) -> TimeInterval {
+        8 + Double(count) / AudioRecorder.sampleRate / 4
+    }
+
     private func pollPermissionsUntilGranted() {
         guard permissionTimer == nil, !hasAllPermissions else { return }
         let timer = Timer(timeInterval: Self.permissionPollInterval, repeats: true) { [weak self] _ in
@@ -324,4 +431,10 @@ final class AppState: ObservableObject {
         RunLoop.main.add(timer, forMode: .common)
         permissionTimer = timer
     }
+}
+
+enum TranscriptionError: LocalizedError {
+    case modelNotLoaded
+
+    var errorDescription: String? { "The Whisper model isn't loaded." }
 }

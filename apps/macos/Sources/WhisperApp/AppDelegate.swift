@@ -22,6 +22,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         state.refreshSystemStatus()
     }
 
+    // swell://pair links from a host. Ask before adding: anyone can send a link.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard let link = urls.lazy.compactMap({ PairingLink($0.absoluteString) }).first else { return }
+        state.pendingPairing = link
+        showMainWindow()
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }

@@ -21,10 +21,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.openMainWindow = openMainWindow
         super.init()
 
-        state.$loadedModelID
-            .map { $0 != nil }
+        // A chosen machine needs no local model, so show the icon as soon as either is ready.
+        // @Published emits before the property changes, so use the emitted values, not state's.
+        Publishers.CombineLatest3(state.$loadedModelID, state.$engine, state.$machines)
+            .map { loadedModelID, engine, machines in AppState.isReady(loadedModelID: loadedModelID, engine: engine, machines: machines) }
             .removeDuplicates()
-            .sink { [weak self] isLoaded in self?.setVisible(isLoaded) }
+            .sink { [weak self] isReady in self?.setVisible(isReady) }
             .store(in: &subscriptions)
 
         state.$phase
@@ -40,6 +42,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         hint.isEnabled = false
         menu.addItem(hint)
         menu.addItem(.separator())
+
+        if !state.machines.isEmpty {
+            menu.addItem(engineItem("This Mac", engine: .onDevice))
+            state.machines.forEach { menu.addItem(engineItem($0.name, engine: .machine($0.id))) }
+            menu.addItem(.separator())
+        }
 
         menu.addItem(item("Open Swell…", action: #selector(openWindow)))
         menu.addItem(item("Load model when the app starts", action: #selector(toggleLoadAtStart), isOn: state.loadModelAtStart))
@@ -104,6 +112,17 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         item.target = self
         if let isOn { item.state = isOn ? .on : .off }
         return item
+    }
+
+    private func engineItem(_ title: String, engine: Engine) -> NSMenuItem {
+        let item = item(title, action: #selector(selectEngine(_:)), isOn: state.engine == engine)
+        item.representedObject = engine.rawValue
+        return item
+    }
+
+    @objc private func selectEngine(_ sender: NSMenuItem) {
+        guard let rawValue = sender.representedObject as? String else { return }
+        state.engine = Engine(rawValue: rawValue)
     }
 
     @objc private func openWindow() { openMainWindow() }
