@@ -1,9 +1,9 @@
 import ServiceManagement
 import SwiftUI
 
-struct SettingsView: View {
+/// Startup, the hotkey, microphone and language, and permissions.
+struct GeneralSettingsView: View {
     @ObservedObject var state: AppState
-    @State private var isAddingMachine = false
 
     var body: some View {
         Form {
@@ -11,8 +11,8 @@ struct SettingsView: View {
                 HeaderRow(state: state)
             }
 
-            Section("General") {
-                Toggle("Load model when the app starts", isOn: $state.loadModelAtStart)
+            Section("Startup") {
+                Toggle("Load the on-device model when Swell starts", isOn: $state.loadModelAtStart)
                 Toggle("Launch at login", isOn: Binding(
                     get: { state.isLaunchAtLoginEnabled },
                     set: { state.setLaunchAtLogin($0) }
@@ -28,30 +28,6 @@ struct SettingsView: View {
                 Picker("Language", selection: $state.language) {
                     ForEach(DictationLanguage.allCases) { Text($0.title).tag($0) }
                 }
-            }
-
-            Section {
-                EngineRow(
-                    title: "This Mac",
-                    detail: "\(WhisperModel.with(id: state.selectedModelID).name) model on the Neural Engine. Works offline.",
-                    isSelected: state.engine == .onDevice,
-                    select: { state.engine = .onDevice }
-                ) {
-                    EmptyView()
-                }
-                ForEach(state.machines) { MachineRow(machine: $0, state: state) }
-            } header: {
-                Text("Engine")
-            } footer: {
-                EngineFooter(state: state) { isAddingMachine = true }
-            }
-
-            Section {
-                ForEach(WhisperModel.all) { ModelRow(model: $0, state: state) }
-            } header: {
-                Text(state.engine == .onDevice ? "Model" : "On-device model (fallback)")
-            } footer: {
-                ModelFooter(state: state)
             }
 
             Section("Permissions") {
@@ -80,13 +56,50 @@ struct SettingsView: View {
 
             if let transcript = state.lastTranscript {
                 Section("Last dictation") {
+                    // Capped so a long dictation can't stretch the window past the screen.
                     Text(transcript)
+                        .lineLimit(4)
                         .textSelection(.enabled)
                         .foregroundStyle(.secondary)
                 }
             }
         }
-        .formStyle(.grouped)
+        .settingsPane()
+    }
+}
+
+/// Where dictation is transcribed: this Mac, or a paired machine, plus the on-device models.
+struct EngineSettingsView: View {
+    @ObservedObject var state: AppState
+    @State private var isAddingMachine = false
+
+    var body: some View {
+        Form {
+            Section {
+                EngineRow(
+                    title: "This Mac",
+                    detail: "\(WhisperModel.with(id: state.selectedModelID).name) model on the Neural Engine. Works offline.",
+                    isSelected: state.engine == .onDevice,
+                    select: { state.engine = .onDevice }
+                ) {
+                    EmptyView()
+                }
+                ForEach(state.machines) { MachineRow(machine: $0, state: state) }
+            } header: {
+                Text("Transcribe on")
+            } footer: {
+                EngineFooter(state: state) { isAddingMachine = true }
+            }
+
+            Section {
+                ForEach(WhisperModel.all) { ModelRow(model: $0, state: state) }
+            } header: {
+                Text(state.engine == .onDevice ? "On-device model" : "On-device model (fallback)")
+            } footer: {
+                ModelFooter(state: state)
+            }
+        }
+        .settingsPane()
         .sheet(isPresented: Binding(
             get: { isAddingMachine || state.pendingPairing != nil },
             set: { isPresented in
@@ -97,8 +110,16 @@ struct SettingsView: View {
         )) {
             AddMachineSheet(state: state, openedLink: state.pendingPairing)
         }
-        .frame(width: 480)
-        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private extension View {
+    // Each pane takes its natural height, so the window fits the tab instead of the whole app.
+    func settingsPane() -> some View {
+        formStyle(.grouped)
+            .scrollDisabled(true)
+            .frame(width: 480)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

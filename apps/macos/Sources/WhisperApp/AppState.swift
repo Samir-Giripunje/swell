@@ -99,6 +99,7 @@ final class AppState: ObservableObject {
     private var permissionTimer: Timer?
     private var isStartingRecording = false
     private var endOnceStarted: (() -> Void)?
+    private var recordingStartedAt = Date.distantPast
     private var reachability: (machine: Machine, client: HostClient, probe: Task<MachineStatus, Error>)?
 
     private init() {
@@ -325,6 +326,7 @@ final class AppState: ObservableObject {
             let (device, format) = try await recorder.start(microphoneUID: microphoneUID)
             isStartingRecording = false
             lastError = nil
+            recordingStartedAt = Date()
             phase = .recording
             Self.log.notice("Recording started: \(device, privacy: .public), \(format.description, privacy: .public)")
             endOnceStarted?()
@@ -341,17 +343,22 @@ final class AppState: ObservableObject {
             return
         }
         guard phase == .recording else { return }
-        let samples = stopRecording()
-        lastRecording = samples
-        let seconds = Double(samples.count) / AudioRecorder.sampleRate
-        let peak = samples.lazy.map(abs).max() ?? 0
-        Self.log.notice("Recording stopped after \(seconds, format: .fixed(precision: 2))s, peak amplitude \(peak, format: .fixed(precision: 3))")
-        guard seconds >= Self.minimumRecordingSeconds else {
+        // Judge accidental taps by how long the key was held; the samples include the release tail.
+        guard Date().timeIntervalSince(recordingStartedAt) >= Self.minimumRecordingSeconds else {
+            _ = stopRecording()
             phase = .idle
             return
         }
         phase = .transcribing
-        Task { await transcribeAndPaste(samples) }
+        Task {
+            let samples = await recorder.finish()
+            meter.level = 0
+            lastRecording = samples
+            let seconds = Double(samples.count) / AudioRecorder.sampleRate
+            let peak = samples.lazy.map(abs).max() ?? 0
+            Self.log.notice("Recording stopped after \(seconds, format: .fixed(precision: 2))s, peak amplitude \(peak, format: .fixed(precision: 3))")
+            await transcribeAndPaste(samples)
+        }
     }
 
     private func cancelDictation(cause: String) {

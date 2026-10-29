@@ -18,6 +18,9 @@ enum AudioRecorderError: LocalizedError {
 final class AudioRecorder: @unchecked Sendable {
     static let sampleRate: Double = 16_000
     private static let startTimeout: TimeInterval = 3
+    // The input tap delivers audio in 100 ms buffers, so the last words are still in flight when the
+    // key comes up, and people let go on their final syllable. Listening this much longer keeps them.
+    private static let releaseTail: Duration = .milliseconds(300)
 
     var onLevel: ((Float) -> Void)?
     // Self-test only: replaces the next recording's audio, then clears itself.
@@ -99,6 +102,13 @@ final class AudioRecorder: @unchecked Sendable {
         guard status == noErr else { throw AudioRecorderError.noInputDevice }
     }
 
+    /// Stops after the release tail, so the end of the last word is in the samples.
+    func finish() async -> [Float] {
+        if injectedSamples == nil { try? await Task.sleep(for: Self.releaseTail) }
+        return stop()
+    }
+
+    /// Stops now, dropping audio still in flight. For cancelled recordings.
     func stop() -> [Float] {
         audioQueue.async { [self] in stopEngine() }
         defer { injectedSamples = nil }

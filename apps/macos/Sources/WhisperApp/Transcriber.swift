@@ -59,11 +59,14 @@ actor Transcriber {
 
     func transcribe(_ samples: [Float], language: DictationLanguage) async throws -> String {
         guard let whisperKit else { return "" }
+        // Past 30 s, WhisperKit otherwise cuts fixed windows, and words straddling a cut are lost; after
+        // a long thinking pause whole sentences went missing. VAD chunking cuts in the pauses instead.
         let options = DecodingOptions(
             language: language.whisperCode,
             detectLanguage: language == .auto,
             skipSpecialTokens: true,
-            withoutTimestamps: true
+            withoutTimestamps: true,
+            chunkingStrategy: .vad
         )
         let results = try await whisperKit.transcribe(audioArray: samples, decodeOptions: options)
         return Self.clean(results.map(\.text).joined(separator: " "))
