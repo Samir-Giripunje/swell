@@ -56,12 +56,12 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         if !state.machines.isEmpty {
             menu.addItem(engineItem("This Mac", engine: .onDevice))
             state.machines.forEach { menu.addItem(engineItem($0.name, engine: .machine($0.id))) }
-            menu.addItem(rephraseMenu())
-            let correct = item("Correct Selected Text", action: #selector(correctSelection), key: "r")
-            correct.keyEquivalentModifierMask = [.control, .option]
-            menu.addItem(correct)
-            menu.addItem(.separator())
         }
+        menu.addItem(rephraseMenu())
+        let correct = item("Correct Selected Text", action: #selector(correctSelection), key: "r")
+        correct.keyEquivalentModifierMask = [.control, .option]
+        menu.addItem(correct)
+        menu.addItem(.separator())
 
         menu.addItem(item("Open Swell…", action: #selector(openWindow)))
         menu.addItem(item("Load model when the app starts", action: #selector(toggleLoadAtStart), isOn: state.loadModelAtStart))

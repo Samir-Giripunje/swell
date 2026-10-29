@@ -68,17 +68,16 @@ final class CorrectionController: ObservableObject {
         }
     }
 
-    var machineName: String { state.selectedMachine?.name ?? "your machine" }
+    /// Where the current correction runs, shown while it works.
+    @Published private(set) var engineName = "this Mac"
+    /// Why a machine wasn't used, when this Mac corrected the text instead.
+    @Published private(set) var fallbackNote: String?
 
     func start() {
         task?.cancel()
         target = NSWorkspace.shared.frontmostApplication
         level = state.rephraseLevel == .off ? .low : state.rephraseLevel
         task = Task {
-            guard state.selectedMachine != nil else {
-                phase = .failed("Correcting runs on a machine. Pick one in Swell › Engine.")
-                return
-            }
             guard let text = await Self.selectedText(), !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 phase = .failed("Select some text first, then press \(Self.shortcutTitle).")
                 return
@@ -122,17 +121,32 @@ final class CorrectionController: ObservableObject {
         original = ""
     }
 
+    /// The chosen machine first; Apple's on-device model when there is none or it doesn't answer.
     private func correct() async {
-        guard let machine = state.selectedMachine else { return }
         phase = .working
-        let client = HostClient(url: machine.url, token: machine.token)
+        fallbackNote = nil
+        var machineError: String?
+        if let machine = state.selectedMachine {
+            engineName = machine.name
+            do {
+                let text = try await HostClient(url: machine.url, token: machine.token).rephrase(original, level: level, timeout: Self.requestTimeout)
+                guard !Task.isCancelled else { return }
+                phase = .done(text)
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+                machineError = "\(machine.name): \(error.localizedDescription)"
+            }
+        }
+        engineName = "this Mac"
         do {
-            let text = try await client.rephrase(original, level: level, timeout: Self.requestTimeout)
+            let text = try await OnDeviceRephraser.corrected(original, level: level)
             guard !Task.isCancelled else { return }
+            fallbackNote = machineError.map { _ in "Corrected on this Mac. \(state.selectedMachine?.name ?? "Your machine") didn't answer." }
             phase = .done(text)
         } catch {
             guard !Task.isCancelled else { return }
-            phase = .failed(error.localizedDescription)
+            phase = .failed([machineError, error.localizedDescription].compactMap { $0 }.joined(separator: "\n"))
         }
     }
 
@@ -209,7 +223,7 @@ struct CorrectionView: View {
         case .working, nil:
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text("Correcting on \(controller.machineName)…").foregroundStyle(.secondary)
+                Text("Correcting on \(controller.engineName)…").foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
         case .done(let text) where text == controller.original:
@@ -237,7 +251,7 @@ struct CorrectionView: View {
 
     private var buttons: some View {
         HStack {
-            Text("Changes are highlighted.").font(.caption).foregroundStyle(.secondary)
+            Text(controller.fallbackNote ?? "Changes are highlighted.").font(.caption).foregroundStyle(.secondary)
                 .opacity(isReplaceable ? 1 : 0)
             Spacer()
             Button("Cancel", role: .cancel) { controller.dismiss() }

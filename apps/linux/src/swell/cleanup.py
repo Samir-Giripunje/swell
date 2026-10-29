@@ -192,3 +192,34 @@ def corrected(text: str, vocab: str | None, level: str) -> str:
     if not result or (words >= MIN_WORDS and not low <= len(result.split()) / words <= high):
         raise CorrectionError("The rewrite strayed too far from your text, so Swell discarded it. Try another level.")
     return result
+
+
+def exported() -> dict[str, object]:
+    """Everything a client needs to rephrase the same way on its own: packages/protocol/fixtures/rephrasing.json."""
+
+    def levels(prompts: dict[str, Level]) -> dict[str, object]:
+        return {
+            name: {"instructions": level.instructions, "examples": [list(example) for example in level.examples], "word_ratio": list(level.word_ratio)}
+            for name, level in prompts.items()
+        }
+
+    return {
+        "min_words": MIN_WORDS,
+        "fillers": FILLERS.pattern,
+        "sentence_start": SENTENCE_START.pattern,
+        "dictation": {"preamble": PREAMBLE, "tag": "transcript", "levels": levels(PROMPTS)},
+        "text": {"preamble": TEXT_PREAMBLE, "tag": "text", "levels": levels(TEXT_PROMPTS)},
+        "low_cases": [
+            [
+                "Um, so, can you like check why the build is failing? Uh, the results was good.",
+                "So, can you like check why the build is failing? The results was good.",
+            ],
+            ["We need, uhm, the umbrella and the hummus. Hmm. Erm, okay.", "We need the umbrella and the hummus. Okay."],
+            ["It fails at the uh test step. Um.", "It fails at the test step."],
+        ],
+    }
+
+
+if __name__ == "__main__":
+    # Regenerate the shared fixture after changing a prompt: python -m swell.cleanup > ../../packages/protocol/fixtures/rephrasing.json
+    print(json.dumps(exported(), indent=2, ensure_ascii=False))

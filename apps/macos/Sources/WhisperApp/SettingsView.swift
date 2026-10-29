@@ -91,23 +91,17 @@ struct EngineSettingsView: View {
                 EngineFooter(state: state) { isAddingMachine = true }
             }
 
-            if !state.machines.isEmpty {
-                Section {
-                    Picker("Rephrasing", selection: $state.rephraseLevel) {
-                        ForEach(RephraseLevel.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    Text(state.rephraseLevel.detail).font(.caption).foregroundStyle(.secondary)
-                } header: {
-                    Text("Rephrasing")
-                } footer: {
-                    Text((state.selectedMachine.map { "Done by \($0.name). When this Mac transcribes, text isn't rephrased." }
-                        ?? "Done by your machine, so it applies only when a machine transcribes.")
-                        + " To correct text you typed, select it anywhere and press \(CorrectionController.shortcutTitle).")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            Section {
+                Picker("Rephrasing", selection: $state.rephraseLevel) {
+                    ForEach(RephraseLevel.allCases) { Text($0.title).tag($0) }
                 }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                Text(state.rephraseLevel.detail).font(.caption).foregroundStyle(.secondary)
+            } header: {
+                Text("Rephrasing")
+            } footer: {
+                RephrasingFooter(state: state)
             }
 
             Section {
@@ -451,5 +445,25 @@ private struct AddMachineSheet: View {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+}
+
+private struct RephrasingFooter: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(whoRephrases + " To correct text you typed, select it anywhere and press \(CorrectionController.shortcutTitle).")
+            if let reason = OnDeviceRephraser.unavailableReason, state.rephraseLevel != .off, state.rephraseLevel != .low {
+                Label(reason, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            }
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    private var whoRephrases: String {
+        guard let machine = state.selectedMachine else { return "Apple Intelligence rephrases on this Mac." }
+        return "\(machine.name) rephrases. When it doesn't answer, Apple Intelligence does it on this Mac."
     }
 }

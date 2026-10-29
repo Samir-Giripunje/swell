@@ -25,7 +25,7 @@ Swell comes for **macOS** and **Linux**. A Linux PC with a GPU can also transcri
 - **Hold-to-talk anywhere** — right ⌘ (or right ⌥) in any app; text is pasted at the cursor and your clipboard is restored.
 - **Animated on-screen pill** while you speak and while it transcribes.
 - **Choose your model** — download, switch and delete Whisper models in the app.
-- **Correct any text** — select text anywhere and press **⌃⌥R**. Your machine rewrites it at your Rephrasing level, a popover under the menu bar icon highlights what changed, and **Replace** (or Return) swaps it in. Needs a paired machine.
+- **Correct any text** — select text anywhere and press **⌃⌥R**. Your machine rewrites it at your Rephrasing level, a popover under the menu bar icon highlights what changed, and **Replace** (or Return) swaps it in. With no machine, or when it's asleep, Apple Intelligence does it on your Mac (macOS 26).
 - **Use a more powerful machine** — send your speech to Swell on a Linux PC with a GPU over Tailscale, for a bigger model at the same speed. If it's asleep, your Mac transcribes instead.
 - **Lives in the menu bar** — in the Dock and ⌘Tab only while its window is open; quit from the menu bar icon.
 - **Launch at login** (starts silently) and **load model at start** toggles.
@@ -57,7 +57,7 @@ Models download from [argmaxinc/whisperkit-coreml](https://huggingface.co/argmax
 2. On the Linux PC, install [Swell for Linux](#swell-for-linux), open it, turn on **Serve other machines**, and click **Copy pairing link**.
 3. On the Mac, open Swell › **Engine** › **Add Machine…** and paste the link. Or open the link on the Mac and confirm.
 
-The machine shows as **Online** with its model and round-trip time. Under **Rephrasing**, choose how much it tidies your words: Off, Low (drops "um" and "uh" only), Medium, or High (polished sentences). Pick **This Mac** or the machine in Settings or the menu bar. The link carries a secret token, so share it only with your own devices; Swell keeps it in `~/Library/Application Support/Swell/machines.json`, readable only by you.
+The machine shows as **Online** with its model and round-trip time. Under **Rephrasing**, choose how much it tidies your words: Off, Low (drops "um" and "uh" only), Medium, or High (polished sentences). When your Mac transcribes, Apple Intelligence rephrases on the Mac instead, so the level always applies. Pick **This Mac** or the machine in Settings or the menu bar. The link carries a secret token, so share it only with your own devices; Swell keeps it in `~/Library/Application Support/Swell/machines.json`, readable only by you.
 
 ## Troubleshooting
 
