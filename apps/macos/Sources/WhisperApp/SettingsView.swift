@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @ObservedObject var state: AppState
+    @State private var isAddingMachine = false
 
     var body: some View {
         Form {
@@ -30,9 +31,25 @@ struct SettingsView: View {
             }
 
             Section {
+                EngineRow(
+                    title: "This Mac",
+                    detail: "\(WhisperModel.with(id: state.selectedModelID).name) model on the Neural Engine. Works offline.",
+                    isSelected: state.engine == .onDevice,
+                    select: { state.engine = .onDevice }
+                ) {
+                    EmptyView()
+                }
+                ForEach(state.machines) { MachineRow(machine: $0, state: state) }
+            } header: {
+                Text("Engine")
+            } footer: {
+                EngineFooter(state: state) { isAddingMachine = true }
+            }
+
+            Section {
                 ForEach(WhisperModel.all) { ModelRow(model: $0, state: state) }
             } header: {
-                Text("Model")
+                Text(state.engine == .onDevice ? "Model" : "On-device model (fallback)")
             } footer: {
                 ModelFooter(state: state)
             }
@@ -70,6 +87,16 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .sheet(isPresented: Binding(
+            get: { isAddingMachine || state.pendingPairing != nil },
+            set: { isPresented in
+                guard !isPresented else { return }
+                isAddingMachine = false
+                state.pendingPairing = nil
+            }
+        )) {
+            AddMachineSheet(state: state, openedLink: state.pendingPairing)
+        }
         .frame(width: 480)
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -238,6 +265,151 @@ private struct PermissionRow: View {
             if !isGranted {
                 Button("Allow…", action: action)
             }
+        }
+    }
+}
+
+private struct EngineRow<Trailing: View>: View {
+    let title: String
+    let detail: String
+    let isSelected: Bool
+    let select: () -> Void
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: select) {
+                HStack(spacing: 10) {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                        Text(detail).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            trailing
+        }
+    }
+}
+
+private struct MachineRow: View {
+    let machine: Machine
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        EngineRow(
+            title: machine.name,
+            detail: detail,
+            isSelected: state.engine == .machine(machine.id),
+            select: { state.engine = .machine(machine.id) }
+        ) {
+            HStack(spacing: 6) {
+                if state.machineStatus[machine.id] == .checking {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button {
+                        Task { await state.checkMachine(machine.id) }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .help("Test connection")
+                }
+                Button {
+                    state.removeMachine(machine.id)
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .help("Remove \(machine.name)")
+            }
+            .buttonStyle(.borderless)
+        }
+    }
+
+    private var detail: String {
+        switch state.machineStatus[machine.id] ?? .unknown {
+        case .unknown: machine.url.absoluteString
+        case .checking: "Connecting to \(machine.url.absoluteString)…"
+        case .online(let health, let milliseconds): "Online · \(health.summary) · \(milliseconds) ms"
+        case .offline(let reason): "Offline · \(reason)"
+        }
+    }
+}
+
+private struct EngineFooter: View {
+    @ObservedObject var state: AppState
+    let addMachine: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top) {
+            Text(text).foregroundStyle(.secondary)
+            Spacer()
+            Button("Add Machine…", action: addMachine).controlSize(.small)
+        }
+        .font(.caption)
+    }
+
+    private var text: String {
+        guard let machine = state.selectedMachine else {
+            return "Transcribe on a more powerful computer, such as a Linux PC with a GPU running Swell, over Tailscale."
+        }
+        return "If \(machine.name) doesn't answer, this Mac transcribes instead."
+    }
+}
+
+private struct AddMachineSheet: View {
+    @ObservedObject var state: AppState
+    /// A pairing link opened from outside Swell, waiting for confirmation. Nil when pasting one by hand.
+    let openedLink: PairingLink?
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+    @State private var error: String?
+
+    private var link: PairingLink? { openedLink ?? PairingLink(text) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Add a machine").font(.title3.weight(.semibold))
+            Text("On the other computer, open Swell, turn on **Serve other machines**, and click **Copy pairing link**. Paste it here.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if openedLink == nil {
+                SecureField("swell://pair?…", text: $text)
+                    .textFieldStyle(.roundedBorder)
+            }
+            if let link {
+                LabeledContent("Machine", value: link.name)
+                LabeledContent("Address", value: link.url.absoluteString)
+            } else if !text.isEmpty {
+                Text("That isn't a Swell pairing link.").font(.caption).foregroundStyle(.red)
+            }
+            if let error {
+                Text(error).font(.caption).foregroundStyle(.red)
+            }
+            HStack {
+                Spacer()
+                Button("Cancel", role: .cancel) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Add") { add() }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(link == nil)
+            }
+        }
+        .padding(20)
+        .frame(width: 420)
+    }
+
+    private func add() {
+        guard let link else { return }
+        do {
+            try state.addMachine(link)
+            dismiss()
+        } catch {
+            self.error = error.localizedDescription
         }
     }
 }

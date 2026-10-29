@@ -39,7 +39,7 @@ The most common defect is a change that works where you tried it and is missing 
 
 - Prefer the smallest change that makes the behavior unsurprising. Do not add a layer, protocol or dependency for one caller.
 - Match the surrounding code: comments explain why, not what; names are full words.
-- Swift: `@MainActor` for UI state, actors for engines, no force unwraps outside tests. Secrets go in the Keychain, never `UserDefaults`.
+- Swift: `@MainActor` for UI state, actors for engines, no force unwraps outside tests. Secrets go in files only the user can read (0600), never `UserDefaults`. Not the Keychain: builds have no Apple team ID, so it would ask for the login password after every update.
 - Python: the modules the control window imports (`settings`, `pairing`, `cleanup`, `server`) are standard library only, because it runs on the system Python.
 
 ## Verifying
@@ -53,5 +53,5 @@ The most common defect is a change that works where you tried it and is missing 
 ## The ways to hurt yourself
 
 1. **The live install.** The developer dictates with these apps all day. Don't kill Swell by name; on Linux, stop the PID in `~/.cache/swell/lock`. Don't run `build.sh` without being asked, because it replaces `/Applications/Swell.app`.
-2. **Leaking tokens.** Never print, log or commit a host token or pairing link. Pass it through a file or the Keychain.
+2. **Leaking tokens.** Never print, log or commit a host token or pairing link. Pass it through a private file.
 3. **Resetting permissions.** Builds signed ad hoc lose macOS Microphone and Accessibility grants. `build.sh` signs with the stable "Whisper Local Signing" certificate when it exists; keep it that way.

@@ -25,6 +25,7 @@ Swell comes for **macOS** and **Linux**. A Linux PC with a GPU can also transcri
 - **Hold-to-talk anywhere** — right ⌘ (or right ⌥) in any app; text is pasted at the cursor and your clipboard is restored.
 - **Animated on-screen pill** while you speak and while it transcribes.
 - **Choose your model** — download, switch and delete Whisper models in the app.
+- **Use a more powerful machine** — send your speech to Swell on a Linux PC with a GPU over Tailscale, for a bigger model at the same speed. If it's asleep, your Mac transcribes instead.
 - **Lives in the menu bar** — in the Dock and ⌘Tab only while its window is open; quit from the menu bar icon.
 - **Launch at login** (starts silently) and **load model at start** toggles.
 - **Battery friendly** — ~0% CPU when idle; the microphone is only on while you hold the key.
@@ -49,12 +50,21 @@ Requires an **Apple Silicon** Mac on **macOS 14 Sonoma or later**.
 
 Models download from [argmaxinc/whisperkit-coreml](https://huggingface.co/argmaxinc/whisperkit-coreml) into `~/Library/Application Support/Whisper/Models`. Switching keeps the current model working until the new one is ready.
 
+## Use another machine
+
+1. Install [Tailscale](https://tailscale.com/download) on both computers and sign in with the same account.
+2. On the Linux PC, install [Swell for Linux](#swell-for-linux), open it, turn on **Serve other machines**, and click **Copy pairing link**.
+3. On the Mac, open Swell › **Engine** › **Add Machine…** and paste the link. Or open the link on the Mac and confirm.
+
+The machine shows as **Online** with its model and round-trip time. Pick **This Mac** or the machine in Settings or the menu bar. The link carries a secret token, so share it only with your own devices; Swell keeps it in `~/Library/Application Support/Swell/machines.json`, readable only by you.
+
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
 | Nothing is pasted | Accessibility is off or stale: in **Privacy & Security → Accessibility**, remove Swell with **−**, add it again with **+**. Your text is on the clipboard meanwhile (⌘V). |
 | Empty or cut-off text with AirPods | Bluetooth mics drop the first ~0.75 s. Pick the built-in microphone in Swell → Dictation → Microphone (the default). |
+| A machine shows **Offline** | Make sure it's awake, Swell is running there with **Serve other machines** on, and Tailscale is connected on both. Click ↻ to test again. |
 | Popup asks for Accessibility every launch | Same as "Nothing is pasted" — remove and re-add the entry. |
 
 Logs: `/usr/bin/log show --last 10m --predicate 'subsystem == "com.samirgiripunje.whisper"'`

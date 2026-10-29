@@ -11,6 +11,10 @@ let package = Package(
         .executableTarget(
             name: "WhisperApp",
             dependencies: [.product(name: "WhisperKit", package: "WhisperKit")]
-        )
+        ),
+        .testTarget(
+            name: "WhisperAppTests",
+            dependencies: ["WhisperApp"]
+        ),
     ]
 )
