@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Samir-Giripunje/swell/packages/protocol/schema.json",
+  "title": "Swell protocol v1",
+  "$defs": {
+    "Health": {
+      "type": "object",
+      "required": ["protocol", "name", "model", "device", "cleanup"],
+      "properties": {
+        "protocol": { "const": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "device": { "enum": ["cuda", "cpu"] },
+        "cleanup": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "Transcription": {
+      "type": "object",
+      "required": ["text"],
+      "properties": {
+        "text": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "Error": {
+      "type": "object",
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "enum": ["bad_request", "unauthorized", "forbidden", "not_found", "too_large", "internal"] },
+            "message": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

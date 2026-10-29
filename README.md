@@ -8,6 +8,7 @@
   <a href="../../releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/Samir-Giripunje/swell?include_prereleases"></a>
   <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-blue">
   <img alt="Apple Silicon" src="https://img.shields.io/badge/Apple%20Silicon-arm64-black">
+  <img alt="Linux X11" src="https://img.shields.io/badge/Linux-X11-orange">
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-green"></a>
 </p>
 
@@ -15,7 +16,9 @@ Hold **right ⌘**, speak, let go — your words are typed wherever your cursor 
 
 A free, open-source, fully local take on voice dictation apps like [Wispr Flow](https://wisprflow.ai).
 
-Swell runs OpenAI's Whisper speech recognition **entirely on your Mac** (Neural Engine, via [WhisperKit](https://github.com/argmaxinc/WhisperKit)). No cloud, no account, nothing leaves your machine.
+Swell runs OpenAI's Whisper speech recognition **entirely on your own machines**: on your Mac's Neural Engine (via [WhisperKit](https://github.com/argmaxinc/WhisperKit)), or on a Linux PC's GPU (via [faster-whisper](https://github.com/SYSTRAN/faster-whisper)). No cloud, no account.
+
+Swell comes for **macOS** and **Linux**. A Linux PC with a GPU can also transcribe for your Mac over [Tailscale](https://tailscale.com), so the Mac gets a bigger model without spending its own memory or battery.
 
 ## Features
 
@@ -56,21 +59,42 @@ Models download from [argmaxinc/whisperkit-coreml](https://huggingface.co/argmax
 
 Logs: `/usr/bin/log show --last 10m --predicate 'subsystem == "com.samirgiripunje.whisper"'`
 
+## Swell for Linux
+
+Hold **right Ctrl** to dictate. Copy some text, then hold **right Alt** and say what to write, and Swell writes it with OpenAI (needs `OPENAI_API_KEY`). Optional cleanup removes filler words with a local [Ollama](https://ollama.com) model. Needs X11 and, for speed, an NVIDIA GPU.
+
+```bash
+git clone https://github.com/Samir-Giripunje/swell.git ~/Developer/swell
+~/Developer/swell/apps/linux/install.sh
+```
+
+Open **Swell** from your app menu to load a model, start it at login, and turn on **Serve other machines**. Logs: `~/.cache/swell/swell.log`.
+
 ## Build from source
+
+The repository holds both apps and the protocol between them:
+
+| Path | What |
+|---|---|
+| [`apps/macos`](apps/macos) | Swell for Mac (Swift, SwiftUI, WhisperKit) |
+| [`apps/linux`](apps/linux) | Swell for Linux (Python, faster-whisper, GTK) |
+| [`packages/protocol`](packages/protocol) | How one Swell transcribes on another: HTTP API, JSON schema, shared test fixtures |
 
 ```bash
 git clone https://github.com/Samir-Giripunje/swell.git
 cd swell
-./build.sh            # builds and installs /Applications/Swell.app
+apps/macos/build.sh             # builds and installs /Applications/Swell.app
 ```
 
-Requires Xcode 16+. To package a DMG: `brew install create-dmg`, then `./build.sh --no-install && VERSION=0.0.1 scripts/make_dmg.sh`.
+Requires Xcode 16+. To package a DMG: `brew install create-dmg`, then `apps/macos/build.sh --no-install && VERSION=0.0.1 apps/macos/scripts/make_dmg.sh`.
 
 End-to-end self-test (opens TextEdit, dictates a spoken phrase, reads it back, then quits):
 
 ```bash
 open -a /Applications/Swell.app --args --self-test
 ```
+
+Linux tests run without a GPU: `cd apps/linux && uv run --only-group dev pytest`.
 
 ## Releasing
 
@@ -84,6 +108,7 @@ git tag v0.0.2 && git push origin v0.0.2
 
 - **[Wispr Flow](https://wisprflow.ai)** — the hold-to-talk dictation experience and on-screen pill that inspired Swell. Swell is an independent project and is not affiliated with or endorsed by Wispr.
 - **[WhisperKit](https://github.com/argmaxinc/WhisperKit)** by Argmax (MIT) — on-device Whisper inference on the Neural Engine.
+- **[faster-whisper](https://github.com/SYSTRAN/faster-whisper)** by SYSTRAN (MIT) — Whisper on NVIDIA GPUs for Swell on Linux.
 - **[Whisper](https://github.com/openai/whisper)** by OpenAI (MIT) — the speech recognition models.
 
 ## License

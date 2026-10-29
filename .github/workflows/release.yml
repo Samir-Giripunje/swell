@@ -34,16 +34,16 @@ jobs:
         run: brew install create-dmg
 
       - name: Build app
-        run: VERSION="${GITHUB_REF_NAME#v}" ./build.sh --no-install
+        run: VERSION="${GITHUB_REF_NAME#v}" apps/macos/build.sh --no-install
 
       - name: Package DMG
-        run: VERSION="${GITHUB_REF_NAME#v}" scripts/make_dmg.sh
+        run: VERSION="${GITHUB_REF_NAME#v}" apps/macos/scripts/make_dmg.sh
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" build/Swell-*.dmg build/Swell-*.dmg.sha256 \
+          gh release create "$GITHUB_REF_NAME" apps/macos/build/Swell-*.dmg apps/macos/build/Swell-*.dmg.sha256 \
             --title "Swell ${GITHUB_REF_NAME#v}" \
             --notes-file .github/release-notes.md \
             --generate-notes
