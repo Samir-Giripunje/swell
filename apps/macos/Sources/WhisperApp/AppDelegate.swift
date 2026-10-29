@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let state = AppState.shared
     private var overlay: OverlayController?
     private var statusItem: StatusItemController?
+    private let settingsTabs = NSTabViewController()
     private lazy var mainWindow = makeMainWindow()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -27,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let link = urls.lazy.compactMap({ PairingLink($0.absoluteString) }).first else { return }
         state.pendingPairing = link
         showMainWindow()
+        settingsTabs.selectedTabViewItemIndex = SettingsTab.engine.rawValue
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -49,17 +51,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.accessory)
     }
 
+    // Toolbar tabs, like System Settings panes in other Mac apps. One long form was taller than a 13" screen.
     private func makeMainWindow() -> NSWindow {
-        let controller = NSHostingController(rootView: SettingsView(state: state))
-        controller.sizingOptions = [.preferredContentSize]
-        let window = NSWindow(contentViewController: controller)
+        settingsTabs.tabStyle = .toolbar
+        settingsTabs.addTabViewItem(settingsTab(.general, GeneralSettingsView(state: state)))
+        settingsTabs.addTabViewItem(settingsTab(.engine, EngineSettingsView(state: state)))
+        let window = NSWindow(contentViewController: settingsTabs)
         window.title = "Swell"
+        window.toolbarStyle = .preference
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.center()
         window.setFrameAutosaveName("MainWindow")
         return window
+    }
+
+    private func settingsTab(_ tab: SettingsTab, _ view: some View) -> NSTabViewItem {
+        let controller = NSHostingController(rootView: view)
+        // The tab controller resizes the window to each pane's preferred size as you switch.
+        controller.sizingOptions = [.preferredContentSize]
+        // The tab controller shows the selected pane's title as the window title.
+        controller.title = tab.title
+        let item = NSTabViewItem(viewController: controller)
+        item.label = tab.title
+        item.image = NSImage(systemSymbolName: tab.symbol, accessibilityDescription: tab.title)
+        return item
     }
 
     private func makeMainMenu() -> NSMenu {
@@ -94,5 +111,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let item = NSMenuItem()
         item.submenu = menu
         return item
+    }
+}
+
+private enum SettingsTab: Int {
+    case general
+    case engine
+
+    var title: String {
+        switch self {
+        case .general: "General"
+        case .engine: "Engine"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape"
+        case .engine: "cpu"
+        }
     }
 }
