@@ -1,0 +1,39 @@
+[project]
+name = "swell"
+version = "0.1.0"
+description = "Swell for Linux: hold-to-talk dictation with Whisper, and a transcription host for your other machines."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "faster-whisper>=1.1",
+    "numpy",
+    "nvidia-cublas-cu12; sys_platform == 'linux'",
+    "pynput",
+    "sounddevice",
+]
+
+[project.scripts]
+swell = "swell.main:main"
+
+[dependency-groups]
+dev = ["jsonschema>=4", "pytest>=8", "ruff>=0.7"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 160
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "BLE"]
+# The formatter owns line length; prompt text stays on one line per paragraph.
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+# Tests cover the standard-library modules, so they run without installing Whisper or CUDA.
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["swell", "conftest"]

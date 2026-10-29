@@ -1,0 +1,26 @@
+{
+  "valid": [
+    {
+      "link": "swell://pair?name=samir-Legion-5Pro-16ACH6H&url=http%3A%2F%2F100.114.142.113%3A8765&token=abc_DEF-123",
+      "name": "samir-Legion-5Pro-16ACH6H",
+      "url": "http://100.114.142.113:8765",
+      "token": "abc_DEF-123"
+    },
+    {
+      "link": "swell://pair?url=https%3A%2F%2Flegion.tail1234.ts.net&token=t0k3n&name=GPU%20box",
+      "name": "GPU box",
+      "url": "https://legion.tail1234.ts.net",
+      "token": "t0k3n"
+    }
+  ],
+  "invalid": [
+    "https://pair?name=a&url=http%3A%2F%2F100.1.2.3%3A8765&token=t",
+    "swell://other?name=a&url=http%3A%2F%2F100.1.2.3%3A8765&token=t",
+    "swell://pair?name=a&url=http%3A%2F%2F100.1.2.3%3A8765",
+    "swell://pair?name=a&token=t",
+    "swell://pair?url=http%3A%2F%2F100.1.2.3%3A8765&token=t",
+    "swell://pair?name=a&url=ftp%3A%2F%2F100.1.2.3&token=t",
+    "swell://pair?name=a&url=http%3A%2F%2F100.1.2.3%3A8765%2Fv1&token=t",
+    "swell://pair?name=&url=http%3A%2F%2F100.1.2.3%3A8765&token=t"
+  ]
+}
