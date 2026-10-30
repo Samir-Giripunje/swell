@@ -47,3 +47,27 @@ def test_each_level_has_its_own_instructions_and_examples(level):
 def test_off_low_and_short_text_skip_the_model(monkeypatch, text, level, expected):
     monkeypatch.setattr(cleanup, "_chat", lambda *args, **kwargs: pytest.fail("called the model"))
     assert cleanup.cleaned(text, None, level) == expected
+
+
+@pytest.mark.parametrize(
+    ("reply", "error"),
+    [
+        ("I received the report yesterday, will check it tomorrow.", None),
+        (OSError("connection refused"), "didn't answer"),
+        ("Sure! I can help you with that report. Here is a corrected version of what you wrote for your team today.", "strayed"),
+        ("", "strayed"),
+    ],
+)
+def test_corrected_reports_failures(monkeypatch, reply, error):
+    def chat(*args, **kwargs):
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    monkeypatch.setattr(cleanup, "_chat", chat)
+    text = "i recieved the reprot yesterday , will check it tommorow"
+    if error is None:
+        assert cleanup.corrected(text, None, "low") == reply
+    else:
+        with pytest.raises(cleanup.CorrectionError, match=error):
+            cleanup.corrected(text, None, "low")

@@ -48,6 +48,28 @@ The host keeps the original transcript when its model fails, or strays too far f
 
 `text` is final: transcribed, then rephrased at the requested level. It is empty when the audio held no speech.
 
+## `POST /v1/rephrase`
+
+Corrects text the user typed and selected. Body (`Content-Type: application/json`), text at most 20,000 characters:
+
+```json
+{"text": "the results was good mostly but ranking still struggle", "level": "medium"}
+```
+
+| `level` | What changes |
+|---|---|
+| `low` | Spelling, typos, punctuation and capitalisation. Words and structure stay as written. |
+| `medium` | Also grammar and awkward phrasing. |
+| `high` | A clear, polished rewrite. Never adds content. |
+
+Line breaks, lists, code, URLs, names and numbers are kept. The response has the same shape as `/v1/transcribe`:
+
+```json
+{"text": "The results were mostly good, but ranking still struggles."}
+```
+
+Unlike dictation, the host never quietly returns the text unchanged when its model fails: it answers `503 unavailable`, so the client can say so.
+
 ## Errors
 
 Any non-2xx response has this body:
@@ -62,8 +84,9 @@ Any non-2xx response has this body:
 | 401 | `unauthorized` | Token missing or wrong. |
 | 403 | `forbidden` | Caller is not on the tailnet or loopback. |
 | 404 | `not_found` | Unknown path. |
-| 413 | `too_large` | Body over 50 MB. |
+| 413 | `too_large` | Audio over 50 MB, or text over 20,000 characters. |
 | 500 | `internal` | Transcription failed on the host. |
+| 503 | `unavailable` | The host's language model is down, or its rewrite strayed from the text. |
 
 ## Pairing link
 

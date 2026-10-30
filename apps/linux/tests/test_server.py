@@ -20,13 +20,26 @@ def transcribe(wav: bytes, language: str, cleanup: str | None, source: str) -> s
     return f"{len(wav)} bytes in {language}, cleanup {cleanup or 'host'}, from {source}"
 
 
+def rephrase(text: str, level: str) -> str:
+    if text == "model down":
+        raise server.ApiError(503, "unavailable", "The host's language model didn't answer.")
+    return f"{text.upper()} ({level})"
+
+
 @pytest.fixture
 def host():
-    handler = server.make_handler(TOKEN, lambda: protocol_fixture("health.json"), transcribe)
+    handler = server.make_handler(TOKEN, lambda: protocol_fixture("health.json"), transcribe, rephrase)
     running = server.serve(0, handler, host="127.0.0.1")
     yield running.server_address[1]
     running.shutdown()
     running.server_close()
+
+
+def test_rephrase(host, protocol_schema):
+    body = json.dumps(protocol_fixture("rephrase-request.json")).encode()
+    status, response = request(host, "POST", "/v1/rephrase", body, headers={"Content-Type": "application/json"})
+    assert (status, response) == (200, {"text": "THE RESULTS WAS GOOD MOSTLY BUT RANKING STILL STRUGGLE (medium)"})
+    validate(protocol_schema, response, "Transcription")
 
 
 def request(port: int, method: str, path: str, body: bytes | None = None, token: str | None = TOKEN, headers: dict[str, str] | None = None):
@@ -74,6 +87,12 @@ def test_transcribe(host, protocol_schema, path, expected):
         ("POST", "/v1/transcribe", b"undecodable", TOKEN, None, 400, "bad_request"),
         ("POST", "/v1/transcribe", None, TOKEN, {"Content-Length": str(server.MAX_BODY_BYTES + 1)}, 413, "too_large"),
         ("POST", "/v1/transcribe", b"crash", TOKEN, None, 500, "internal"),
+        ("POST", "/v1/rephrase", b"not json", TOKEN, None, 400, "bad_request"),
+        ("POST", "/v1/rephrase", b'{"text": "hi"}', TOKEN, None, 400, "bad_request"),
+        ("POST", "/v1/rephrase", b'{"text": "  ", "level": "low"}', TOKEN, None, 400, "bad_request"),
+        ("POST", "/v1/rephrase", b'{"text": "hi", "level": "off"}', TOKEN, None, 400, "bad_request"),
+        ("POST", "/v1/rephrase", json.dumps({"text": "x" * 20_001, "level": "low"}).encode(), TOKEN, None, 413, "too_large"),
+        ("POST", "/v1/rephrase", b'{"text": "model down", "level": "low"}', TOKEN, None, 503, "unavailable"),
     ],
 )
 def test_errors(host, protocol_schema, method, path, body, token, headers, status, code):
@@ -83,7 +102,9 @@ def test_errors(host, protocol_schema, method, path, body, token, headers, statu
 
 
 def test_rejects_callers_off_the_tailnet(protocol_schema):
-    handler = server.make_handler(TOKEN, lambda: protocol_fixture("health.json"), transcribe, allowed_networks=(ipaddress.ip_network("100.64.0.0/10"),))
+    handler = server.make_handler(
+        TOKEN, lambda: protocol_fixture("health.json"), transcribe, rephrase, allowed_networks=(ipaddress.ip_network("100.64.0.0/10"),)
+    )
     running = server.serve(0, handler, host="127.0.0.1")
     try:
         status, body = request(running.server_address[1], "GET", "/v1/health")

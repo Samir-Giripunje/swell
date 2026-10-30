@@ -60,7 +60,7 @@ class App:
             assert self.transcriber
             return {"protocol": 1, "name": socket.gethostname(), "model": self.model, "device": self.transcriber.device, "cleanup": load_settings().cleanup}
 
-        handler = server.make_handler(server_token(), health, self._remote_text)
+        handler = server.make_handler(server_token(), health, self._remote_text, self._corrected_text)
         server.serve(SERVER_PORT, handler)
         print(f"serving other machines on port {SERVER_PORT}", flush=True)
 
@@ -70,6 +70,17 @@ class App:
         except Exception as error:  # noqa: BLE001 - PyAV raises many types for unreadable audio
             raise server.ApiError(400, "bad_request", "Couldn't decode the audio; send a WAV file.") from error
         return self._dictation_text(audio, language=language, level=level, source=source)
+
+    def _corrected_text(self, text: str, level: str) -> str:
+        assert self.transcriber
+        started = time.time()
+        try:
+            result = cleanup.corrected(text, self.transcriber.vocab, level)
+        except cleanup.CorrectionError as error:
+            print(f"correction ({level}) of {len(text)} chars failed: {error}", flush=True)
+            raise server.ApiError(503, "unavailable", str(error)) from error
+        print(f"corrected ({level}) {len(text)} chars in {time.time() - started:.2f}s", flush=True)
+        return result
 
     def _on_press(self, key):
         if self._is_mask_echo(key):

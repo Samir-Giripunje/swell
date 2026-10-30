@@ -6,13 +6,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let state = AppState.shared
     private var overlay: OverlayController?
     private var statusItem: StatusItemController?
+    private var correction: CorrectionController?
     private let settingsTabs = NSTabViewController()
     private lazy var mainWindow = makeMainWindow()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = makeMainMenu()
         overlay = OverlayController(state: state)
-        statusItem = StatusItemController(state: state) { [weak self] in self?.showMainWindow() }
+        let correction = CorrectionController(state: state)
+        self.correction = correction
+        statusItem = StatusItemController(state: state, correction: correction) { [weak self] in self?.showMainWindow() }
         let startHidden = LaunchContext.isLoginLaunch && state.hasAllPermissions
         if !startHidden { showMainWindow() }
         state.start()
