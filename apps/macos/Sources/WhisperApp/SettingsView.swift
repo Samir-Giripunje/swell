@@ -28,6 +28,7 @@ struct GeneralSettingsView: View {
                 Picker("Language", selection: $state.language) {
                     ForEach(DictationLanguage.allCases) { Text($0.title).tag($0) }
                 }
+                LiveDictationRow(state: state)
             }
 
             Section("Permissions") {
@@ -465,5 +466,28 @@ private struct RephrasingFooter: View {
     private var whoRephrases: String {
         guard let machine = state.selectedMachine else { return "Apple Intelligence rephrases on this Mac." }
         return "\(machine.name) rephrases. When it doesn't answer, Apple Intelligence does it on this Mac."
+    }
+}
+
+private struct LiveDictationRow: View {
+    @ObservedObject var state: AppState
+
+    var body: some View {
+        Toggle(isOn: $state.liveDictation) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Live dictation")
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+                if let status = state.liveDictationStatus {
+                    Text(status).font(.caption).foregroundStyle(.orange)
+                }
+            }
+        }
+        .disabled(LiveDictationSession.unavailableReason != nil)
+    }
+
+    private var detail: String {
+        if let reason = LiveDictationSession.unavailableReason { return reason }
+        return "Types as you speak and fixes the last word or two as it hears more, using Apple's speech recognition on this Mac. "
+            + "Machines and rephrasing are skipped; select the text and press \(CorrectionController.shortcutTitle) to polish it."
     }
 }

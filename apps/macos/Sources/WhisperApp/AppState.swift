@@ -42,6 +42,7 @@ final class AppState: ObservableObject {
         static let selectedModel = "selectedModel"
         static let engine = "engine"
         static let rephraseLevel = "rephraseLevel"
+        static let liveDictation = "liveDictation"
         static let legacyModelFolder = "cachedModelFolder"
     }
 
@@ -75,6 +76,15 @@ final class AppState: ObservableObject {
     @Published var rephraseLevel: RephraseLevel {
         didSet { UserDefaults.standard.set(rephraseLevel.rawValue, forKey: Keys.rephraseLevel) }
     }
+    /// Types words into the app as you speak, revising only the last word or two. Uses Apple's live speech
+    /// recognition on this Mac, so machines and rephrasing are skipped; ⌃⌥R polishes afterwards.
+    @Published var liveDictation: Bool {
+        didSet {
+            UserDefaults.standard.set(liveDictation, forKey: Keys.liveDictation)
+            if liveDictation { prepareLiveDictation() }
+        }
+    }
+    @Published private(set) var liveDictationStatus: String?
     @Published private(set) var machines = MachineStore.load()
     @Published private(set) var machineStatus: [UUID: MachineStatus] = [:]
     /// Set while a pairing link waits for the user to confirm it in Settings.
@@ -106,6 +116,7 @@ final class AppState: ObservableObject {
     private var endOnceStarted: (() -> Void)?
     private var recordingStartedAt = Date.distantPast
     private var reachability: (machine: Machine, client: HostClient, probe: Task<MachineStatus, Error>)?
+    private var liveSession: Task<LiveDictationSession, Error>?
 
     private init() {
         let defaults = UserDefaults.standard
@@ -117,6 +128,7 @@ final class AppState: ObservableObject {
         selectedModelID = WhisperModel.with(id: defaults.string(forKey: Keys.selectedModel) ?? "").id
         engine = Engine(rawValue: defaults.string(forKey: Keys.engine) ?? "")
         rephraseLevel = RephraseLevel(rawValue: defaults.string(forKey: Keys.rephraseLevel) ?? "") ?? .medium
+        liveDictation = defaults.bool(forKey: Keys.liveDictation) && LiveDictationSession.unavailableReason == nil
         Self.adoptLegacyTinyDownload()
         downloadedModelIDs = Set(WhisperModel.all.filter(ModelStore.isDownloaded).map(\.id))
         if case .machine(let id) = engine, !machines.contains(where: { $0.id == id }) { engine = .onDevice }
@@ -320,8 +332,13 @@ final class AppState: ObservableObject {
             Task { await requestMicrophone() }
             return
         }
-        probeSelectedMachine()
-        if loadedModelID == nil, selectedMachine == nil { Task { await loadModel() } }
+        if liveDictation {
+            let language = language
+            liveSession = Task { try await LiveDictationSession.start(language: language) }
+        } else {
+            probeSelectedMachine()
+            if loadedModelID == nil, selectedMachine == nil { Task { await loadModel() } }
+        }
         isStartingRecording = true
         endOnceStarted = nil
         Task { await startRecording() }
@@ -334,10 +351,12 @@ final class AppState: ObservableObject {
             lastError = nil
             recordingStartedAt = Date()
             phase = .recording
+            streamToLiveSession()
             Self.log.notice("Recording started: \(device, privacy: .public), \(format.description, privacy: .public)")
             endOnceStarted?()
         } catch {
             isStartingRecording = false
+            cancelLiveSession()
             lastError = error.localizedDescription
             Self.log.error("Recording failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -352,10 +371,16 @@ final class AppState: ObservableObject {
         // Judge accidental taps by how long the key was held; the samples include the release tail.
         guard Date().timeIntervalSince(recordingStartedAt) >= Self.minimumRecordingSeconds else {
             _ = stopRecording()
+            cancelLiveSession()
             phase = .idle
             return
         }
         phase = .transcribing
+        if let liveSession {
+            self.liveSession = nil
+            Task { await finishLiveDictation(liveSession) }
+            return
+        }
         Task {
             let samples = await recorder.finish()
             meter.level = 0
@@ -374,6 +399,7 @@ final class AppState: ObservableObject {
         }
         guard phase == .recording else { return }
         _ = stopRecording()
+        cancelLiveSession()
         reachability?.probe.cancel()
         reachability = nil
         phase = .idle
@@ -439,6 +465,62 @@ final class AppState: ObservableObject {
     // Generous: the host transcribes and then cleans up the text with a language model.
     static func remoteTimeout(forSamples count: Int) -> TimeInterval {
         8 + Double(count) / AudioRecorder.sampleRate / 4
+    }
+
+    // MARK: Live dictation
+
+    private func prepareLiveDictation() {
+        if let reason = LiveDictationSession.unavailableReason {
+            liveDictationStatus = reason
+            liveDictation = false
+            return
+        }
+        liveDictationStatus = "Getting Apple's speech model ready…"
+        let language = language
+        Task {
+            do {
+                try await LiveDictationSession.prepare(language: language)
+                liveDictationStatus = nil
+            } catch {
+                liveDictationStatus = error.localizedDescription
+            }
+        }
+    }
+
+    private func cancelLiveSession() {
+        guard let liveSession else { return }
+        self.liveSession = nil
+        Task { try? await liveSession.value.cancel() }
+    }
+
+    /// Feeds the recording to live dictation once it's listening, starting with what was already said.
+    private func streamToLiveSession() {
+        guard let liveSession else { return }
+        Task {
+            do {
+                let session = try await liveSession.value
+                recorder.stream(to: session.appendSamples)
+            } catch {
+                lastError = "Live dictation couldn't start: \(error.localizedDescription)"
+                Self.log.error("Live dictation failed to start: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    private func finishLiveDictation(_ liveSession: Task<LiveDictationSession, Error>) async {
+        defer { phase = .idle }
+        _ = await recorder.finish()
+        meter.level = 0
+        guard let session = try? await liveSession.value else { return }
+        let start = Date()
+        let text = await session.finish()
+        Self.log.notice("Live dictation finished \(text.count) chars, \(Date().timeIntervalSince(start), format: .fixed(precision: 2))s after release")
+        guard !text.isEmpty else { return }
+        lastTranscript = text
+        if session.isInterrupted {
+            TextPaster.copy(text)
+            lastError = "Live typing stopped when you clicked or switched apps. The full text is on the clipboard."
+        }
     }
 
     private func pollPermissionsUntilGranted() {
