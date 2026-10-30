@@ -50,6 +50,8 @@ final class AppState: ObservableObject {
     private static let permissionPollInterval: TimeInterval = 2
     // Long enough for a machine on the tailnet, short enough that falling back feels instant.
     private static let reachabilityTimeout: TimeInterval = 1.5
+    // While Settings is open, so a machine that wakes up or goes away shows it without pressing ↻.
+    private static let machineRefreshInterval: TimeInterval = 5
     private static let log = Logger(subsystem: "com.samirgiripunje.whisper", category: "dictation")
 
     @Published var loadModelAtStart: Bool {
@@ -70,7 +72,11 @@ final class AppState: ObservableObject {
     }
 
     @Published var engine: Engine {
-        didSet { UserDefaults.standard.set(engine.rawValue, forKey: Keys.engine) }
+        didSet {
+            UserDefaults.standard.set(engine.rawValue, forKey: Keys.engine)
+            // Show the machine's real status right away, not whatever it was when last checked.
+            if case .machine(let id) = engine, engine != oldValue { Task { await checkMachine(id) } }
+        }
     }
     /// Applied by the machine that transcribes, or by Apple's on-device model when this Mac does.
     @Published var rephraseLevel: RephraseLevel {
@@ -117,6 +123,8 @@ final class AppState: ObservableObject {
     private var recordingStartedAt = Date.distantPast
     private var reachability: (machine: Machine, client: HostClient, probe: Task<MachineStatus, Error>)?
     private var liveSession: Task<LiveDictationSession, Error>?
+    private var machineRefresh: Timer?
+    private var wantsMachineRefresh = false
 
     private init() {
         let defaults = UserDefaults.standard
@@ -175,9 +183,13 @@ final class AppState: ObservableObject {
         updated.append(Machine(id: id, name: link.name, url: link.url, token: link.token))
         try MachineStore.save(updated)
         machines = updated
-        engine = .machine(id)
         pendingPairing = nil
-        Task { await checkMachine(id) }
+        if engine == .machine(id) {
+            Task { await checkMachine(id) }
+        } else {
+            engine = .machine(id)
+        }
+        if wantsMachineRefresh { startRefreshingMachines() }
     }
 
     func removeMachine(_ id: UUID) {
@@ -193,14 +205,39 @@ final class AppState: ObservableObject {
         machineStatus[id] = nil
     }
 
-    func checkMachine(_ id: UUID) async {
+    /// `showsProgress` false refreshes in the background, so the row doesn't flash "Connecting…" every few seconds.
+    func checkMachine(_ id: UUID, showsProgress: Bool = true) async {
         guard let machine = machines.first(where: { $0.id == id }) else { return }
         let client = HostClient(url: machine.url, token: machine.token)
-        machineStatus[id] = .checking
+        if showsProgress { machineStatus[id] = .checking }
         do {
             machineStatus[id] = try await Self.measureHealth(client, timeout: Self.reachabilityTimeout * 2)
         } catch {
             machineStatus[id] = .offline(error.localizedDescription)
+        }
+    }
+
+    func startRefreshingMachines() {
+        wantsMachineRefresh = true
+        guard machineRefresh == nil, !machines.isEmpty else { return }
+        refreshMachines()
+        let timer = Timer(timeInterval: Self.machineRefreshInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refreshMachines() }
+        }
+        timer.tolerance = 1
+        RunLoop.main.add(timer, forMode: .common)
+        machineRefresh = timer
+    }
+
+    func stopRefreshingMachines() {
+        wantsMachineRefresh = false
+        machineRefresh?.invalidate()
+        machineRefresh = nil
+    }
+
+    private func refreshMachines() {
+        for machine in machines {
+            Task { await checkMachine(machine.id, showsProgress: machineStatus[machine.id] == nil) }
         }
     }
 

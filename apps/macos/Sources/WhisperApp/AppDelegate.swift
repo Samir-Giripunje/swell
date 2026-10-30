@@ -48,10 +48,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)
         mainWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        state.startRefreshingMachines()
     }
 
     func windowWillClose(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        state.stopRefreshingMachines()
     }
 
     // Toolbar tabs, like System Settings panes in other Mac apps. One long form was taller than a 13" screen.
