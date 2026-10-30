@@ -70,16 +70,24 @@ struct GeneralSettingsView: View {
 }
 
 /// Where dictation is transcribed: this Mac, or a paired machine, plus the on-device models.
+/// The speech model, rephrasing, and, under Advanced, other computers to transcribe on.
 struct EngineSettingsView: View {
     @ObservedObject var state: AppState
     @State private var isAddingMachine = false
+    @State private var showsMachines: Bool
+
+    init(state: AppState) {
+        self.state = state
+        // Most people use one computer; the machines section opens only for those who have paired one.
+        _showsMachines = State(initialValue: !state.machines.isEmpty || state.pendingPairing != nil)
+    }
 
     var body: some View {
         Form {
             if state.liveDictation {
                 Section {
                     Label(
-                        "Rambler is on, so this Mac transcribes as you speak. Your machines and rephrasing are used again when you turn it off in General.",
+                        "Rambler is on, so this Mac transcribes as you speak. Rephrasing and your machines are used again when you turn it off in General.",
                         systemImage: "waveform.badge.mic"
                     )
                     .font(.callout)
@@ -87,22 +95,12 @@ struct EngineSettingsView: View {
             }
 
             Section {
-                EngineRow(
-                    title: "This Mac",
-                    detail: "\(WhisperModel.with(id: state.selectedModelID).name) model on the Neural Engine. Works offline.",
-                    isSelected: state.engine == .onDevice,
-                    select: { state.engine = .onDevice }
-                ) {
-                    EmptyView()
-                }
-                ForEach(state.machines) { MachineRow(machine: $0, state: state) }
+                ForEach(WhisperModel.all) { ModelRow(model: $0, state: state) }
             } header: {
-                Text("Transcribe on")
+                Text(state.selectedMachine == nil || state.liveDictation ? "Model" : "Model on this Mac")
             } footer: {
-                EngineFooter(state: state) { isAddingMachine = true }
+                ModelFooter(state: state)
             }
-            // Kept as they are, not changed: turning Rambler off brings them straight back.
-            .disabled(state.liveDictation)
 
             Section {
                 Picker("Rephrasing", selection: $state.rephraseLevel) {
@@ -110,21 +108,41 @@ struct EngineSettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .disabled(state.liveDictation)
                 Text(state.rephraseLevel.detail).font(.caption).foregroundStyle(.secondary)
             } header: {
                 Text("Rephrasing")
             } footer: {
                 RephrasingFooter(state: state)
             }
+            .disabled(state.liveDictation)
 
             Section {
-                ForEach(WhisperModel.all) { ModelRow(model: $0, state: state) }
+                DisclosureGroup("Use another computer", isExpanded: $showsMachines) {
+                    Text("Transcribe on a more powerful computer running Swell, such as a Linux PC with a GPU, over Tailscale. "
+                        + "If it doesn't answer, this Mac transcribes instead.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if !state.machines.isEmpty {
+                        EngineRow(
+                            title: "This Mac",
+                            detail: "\(WhisperModel.with(id: state.selectedModelID).name) model on the Neural Engine. Works offline.",
+                            isSelected: state.engine == .onDevice,
+                            select: { state.engine = .onDevice }
+                        ) {
+                            EmptyView()
+                        }
+                        ForEach(state.machines) { MachineRow(machine: $0, state: state) }
+                    }
+                    HStack {
+                        Spacer()
+                        Button("Add Machine…") { isAddingMachine = true }
+                    }
+                }
             } header: {
-                Text(state.engine == .onDevice ? "On-device model" : "On-device model (fallback)")
-            } footer: {
-                ModelFooter(state: state)
+                Text("Advanced")
             }
+            // Kept as they are, not changed: turning Rambler off brings them straight back.
+            .disabled(state.liveDictation)
         }
         .settingsPane()
         .sheet(isPresented: Binding(
@@ -384,27 +402,6 @@ private struct MachineRow: View {
         case .online(let health, let milliseconds): "Online · \(health.summary) · \(milliseconds) ms"
         case .offline(let reason): "Offline · \(reason)"
         }
-    }
-}
-
-private struct EngineFooter: View {
-    @ObservedObject var state: AppState
-    let addMachine: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top) {
-            Text(text).foregroundStyle(.secondary)
-            Spacer()
-            Button("Add Machine…", action: addMachine).controlSize(.small)
-        }
-        .font(.caption)
-    }
-
-    private var text: String {
-        guard let machine = state.selectedMachine else {
-            return "Transcribe on a more powerful computer, such as a Linux PC with a GPU running Swell, over Tailscale."
-        }
-        return "If \(machine.name) doesn't answer, this Mac transcribes instead."
     }
 }
 

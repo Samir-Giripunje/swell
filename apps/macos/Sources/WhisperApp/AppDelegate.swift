@@ -124,7 +124,7 @@ private enum SettingsTab: Int {
     var title: String {
         switch self {
         case .general: "General"
-        case .engine: "Engine"
+        case .engine: "Models"
         }
     }
 

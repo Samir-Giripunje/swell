@@ -55,8 +55,8 @@ Models download from [argmaxinc/whisperkit-coreml](https://huggingface.co/argmax
 ## Use another machine
 
 1. Install [Tailscale](https://tailscale.com/download) on both computers and sign in with the same account.
-2. On the Linux PC, install [Swell for Linux](#swell-for-linux), open it, turn on **Serve other machines**, and click **Copy pairing link**.
-3. On the Mac, open Swell › **Engine** › **Add Machine…** and paste the link. Or open the link on the Mac and confirm.
+2. On the Linux PC, install [Swell for Linux](#swell-for-linux), open it, and under **Advanced** turn on **Serve other machines** and click **Copy pairing link**.
+3. On the Mac, open Swell › **Models** › **Advanced** › **Use another computer** › **Add Machine…** and paste the link. Or open the link on the Mac and confirm.
 
 The machine shows as **Online** with its model and round-trip time. Under **Rephrasing**, choose how much it tidies your words: Off, Low (drops "um" and "uh" only), Medium, or High (polished sentences). When your Mac transcribes, Apple Intelligence rephrases on the Mac instead, so the level always applies. Pick **This Mac** or the machine in Settings or the menu bar. The link carries a secret token, so share it only with your own devices; Swell keeps it in `~/Library/Application Support/Swell/machines.json`, readable only by you.
 
@@ -80,7 +80,7 @@ git clone https://github.com/Samir-Giripunje/swell.git ~/Developer/swell
 ~/Developer/swell/apps/linux/install.sh
 ```
 
-Open **Swell** from your app menu to load a model, start it at login, and turn on **Serve other machines**. Logs: `~/.cache/swell/swell.log`.
+Open **Swell** from your app menu to load a model, start it at login and pick how much to rephrase. Without an NVIDIA GPU, Whisper runs on the CPU and rephrasing uses the smaller qwen3:1.7b ([Ollama](https://ollama.com)), about 2.7 GB of memory in all. To transcribe for your Mac, open **Advanced** and turn on **Serve other machines**. Logs: `~/.cache/swell/swell.log`.
 
 ## Build from source
 
