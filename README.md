@@ -56,7 +56,7 @@ Models download from [argmaxinc/whisperkit-coreml](https://huggingface.co/argmax
 2. On the Linux PC, install [Swell for Linux](#swell-for-linux), open it, turn on **Serve other machines**, and click **Copy pairing link**.
 3. On the Mac, open Swell › **Engine** › **Add Machine…** and paste the link. Or open the link on the Mac and confirm.
 
-The machine shows as **Online** with its model and round-trip time. Pick **This Mac** or the machine in Settings or the menu bar. The link carries a secret token, so share it only with your own devices; Swell keeps it in `~/Library/Application Support/Swell/machines.json`, readable only by you.
+The machine shows as **Online** with its model and round-trip time. Under **Rephrasing**, choose how much it tidies your words: Off, Low (drops "um" and "uh" only), Medium, or High (polished sentences). Pick **This Mac** or the machine in Settings or the menu bar. The link carries a secret token, so share it only with your own devices; Swell keeps it in `~/Library/Application Support/Swell/machines.json`, readable only by you.
 
 ## Troubleshooting
 
@@ -71,7 +71,7 @@ Logs: `/usr/bin/log show --last 10m --predicate 'subsystem == "com.samirgiripunj
 
 ## Swell for Linux
 
-Hold **right Ctrl** to dictate. Copy some text, then hold **right Alt** and say what to write, and Swell writes it with OpenAI (needs `OPENAI_API_KEY`). Optional cleanup removes filler words with a local [Ollama](https://ollama.com) model. Needs X11 and, for speed, an NVIDIA GPU.
+Hold **right Ctrl** to dictate. Copy some text, then hold **right Alt** and say what to write, and Swell writes it with OpenAI (needs `OPENAI_API_KEY`). **Rephrase dictation** goes from Off to High: Low only drops "um" and "uh", while Medium and High tidy or polish the text with a local [Ollama](https://ollama.com) model. Needs X11 and, for speed, an NVIDIA GPU.
 
 ```bash
 git clone https://github.com/Samir-Giripunje/swell.git ~/Developer/swell

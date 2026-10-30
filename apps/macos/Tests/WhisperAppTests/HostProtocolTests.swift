@@ -26,8 +26,8 @@ private struct PairingFixtures: Decodable {
 @Suite struct ProtocolFixtureTests {
     @Test func decodesResponses() throws {
         let health = try JSONDecoder().decode(HostHealth.self, from: fixture("health.json"))
-        #expect(health == HostHealth(protocol: 1, name: "samir-Legion-5Pro-16ACH6H", model: "large-v3-turbo", device: "cuda", cleanup: true))
-        #expect(health.summary == "large-v3-turbo on GPU · cleanup on")
+        #expect(health == HostHealth(protocol: 1, name: "samir-Legion-5Pro-16ACH6H", model: "large-v3-turbo", device: "cuda", cleanup: .medium))
+        #expect(health.summary == "large-v3-turbo on GPU")
         #expect(try JSONDecoder().decode(HostTranscription.self, from: fixture("transcription.json")).text.hasPrefix("Can you check"))
         #expect(try JSONDecoder().decode(HostErrorBody.self, from: fixture("error.json")).error.code == "unauthorized")
     }
@@ -114,11 +114,11 @@ private final class StubProtocol: URLProtocol, @unchecked Sendable {
             sent = request
             return (200, try fixture("transcription.json"))
         }
-        let text = try await client.transcribe([0, 0.5], language: .english, timeout: 5)
+        let text = try await client.transcribe([0, 0.5], language: .english, rephrase: .low, timeout: 5)
         #expect(text.hasPrefix("Can you check"))
         let request = try #require(sent)
         #expect(request.httpMethod == "POST")
-        #expect(request.url?.absoluteString == "http://100.1.2.3:8765/v1/transcribe?language=en")
+        #expect(request.url?.absoluteString == "http://100.1.2.3:8765/v1/transcribe?language=en&cleanup=low")
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer secret")
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "audio/wav")
     }

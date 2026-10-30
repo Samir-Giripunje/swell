@@ -46,7 +46,7 @@ class App:
         started = time.time()
         STATUS_FILE.write_text(f"loading {self.model} on {settings.device}")
         self.transcriber = Transcriber(self.model, settings.device, vocab())
-        if settings.cleanup:
+        if cleanup.uses_model(settings.cleanup):
             cleanup.set_loaded(True)
         if settings.serve:
             self._serve()
@@ -64,12 +64,12 @@ class App:
         server.serve(SERVER_PORT, handler)
         print(f"serving other machines on port {SERVER_PORT}", flush=True)
 
-    def _remote_text(self, wav: bytes, language: str, source: str) -> str:
+    def _remote_text(self, wav: bytes, language: str, level: str | None, source: str) -> str:
         try:
             audio = decode_wav(wav)
         except Exception as error:  # noqa: BLE001 - PyAV raises many types for unreadable audio
             raise server.ApiError(400, "bad_request", "Couldn't decode the audio; send a WAV file.") from error
-        return self._dictation_text(audio, language=language, source=source)
+        return self._dictation_text(audio, language=language, level=level, source=source)
 
     def _on_press(self, key):
         if self._is_mask_echo(key):
@@ -151,7 +151,7 @@ class App:
             self.state = "idle"
             self.overlay.show("empty", hide_after_ms=1200)
 
-    def _dictation_text(self, audio, language: str = "en", source: str = "local") -> str:
+    def _dictation_text(self, audio, language: str = "en", level: str | None = None, source: str = "local") -> str:
         assert self.transcriber
         # One GPU: local and remote dictations take turns.
         with self.dictation_lock:
@@ -159,12 +159,13 @@ class App:
             text = self.transcriber.transcribe(audio, language)
             prefix = "" if source == "local" else f"[{source}] "
             print(f"{prefix}{len(audio) / SAMPLE_RATE:.1f}s audio -> {time.time() - started:.2f}s: {text!r}", flush=True)
-            if load_settings().cleanup and len(text.split()) >= cleanup.MIN_WORDS:
-                if source == "local":
+            level = level or load_settings().cleanup
+            if level != "off":
+                if source == "local" and cleanup.uses_model(level):
                     self.events.put("cleaning")
                 started = time.time()
-                text = cleanup.cleaned(text, self.transcriber.vocab)
-                print(f"  cleaned -> {time.time() - started:.2f}s: {text!r}", flush=True)
+                text = cleanup.cleaned(text, self.transcriber.vocab, level)
+                print(f"  cleaned ({level}) -> {time.time() - started:.2f}s: {text!r}", flush=True)
             return text
 
     def _transcribe_and_paste(self, audio):

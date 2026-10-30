@@ -8,6 +8,8 @@ import secrets
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
+from swell.cleanup import LEVELS as CLEANUP_LEVELS
+
 CONFIG_DIR = Path.home() / ".config" / "swell"
 STATE_DIR = Path.home() / ".cache" / "swell"
 SETTINGS_FILE = CONFIG_DIR / "settings.json"
@@ -31,7 +33,7 @@ class Settings:
     load_model: str = DEFAULT_MODEL
     startup_model: str = DEFAULT_MODEL
     device: str = "cuda"
-    cleanup: bool = True
+    cleanup: str = "medium"
     serve: bool = False
 
 
@@ -45,9 +47,16 @@ def load_settings(path: Path = SETTINGS_FILE) -> Settings:
         load_model=_model(stored.get("load_model")),
         startup_model=_model(stored.get("startup_model")),
         device="cpu" if stored.get("device") == "cpu" else "cuda",
-        cleanup=stored.get("cleanup", defaults.cleanup) is True,
+        cleanup=_cleanup_level(stored.get("cleanup", defaults.cleanup)),
         serve=stored.get("serve", defaults.serve) is True,
     )
+
+
+def _cleanup_level(value: object) -> str:
+    # Before levels, cleanup was a switch, and on meant what is now medium.
+    if value is True:
+        return "medium"
+    return value if isinstance(value, str) and value in CLEANUP_LEVELS else "off"
 
 
 def _model(value: object) -> str:

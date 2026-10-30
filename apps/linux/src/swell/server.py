@@ -9,13 +9,15 @@ from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
+from swell.cleanup import LEVELS as CLEANUP_LEVELS
+
 TAILNET_AND_LOOPBACK = (ipaddress.ip_network("100.64.0.0/10"), ipaddress.ip_network("127.0.0.0/8"))
 MAX_BODY_BYTES = 50 * 1024 * 1024
 LANGUAGE = re.compile(r"auto|[a-z]{2,3}")
 
 Health = Callable[[], dict[str, object]]
-Transcribe = Callable[[bytes, str, str], str]
-"""Takes WAV bytes, a language (`auto` or a Whisper code) and the caller's address; returns the final text."""
+Transcribe = Callable[[bytes, str, str | None, str], str]
+"""Takes WAV bytes, a language (`auto` or a Whisper code), a cleanup level (None for the host's) and the caller's address; returns the final text."""
 
 
 class ApiError(Exception):
@@ -43,15 +45,19 @@ def make_handler(token: str, health: Health, transcribe: Transcribe, allowed_net
             url = urlsplit(self.path)
             if url.path != "/v1/transcribe":
                 raise ApiError(404, "not_found", f"No route for POST {url.path}.")
-            language = parse_qs(url.query).get("language", ["auto"])[0]
+            query = parse_qs(url.query)
+            language = query.get("language", ["auto"])[0]
             if not LANGUAGE.fullmatch(language):
                 raise ApiError(400, "bad_request", f"Unknown language {language!r}.")
+            cleanup = query.get("cleanup", [None])[0]
+            if cleanup is not None and cleanup not in CLEANUP_LEVELS:
+                raise ApiError(400, "bad_request", f"Unknown cleanup level {cleanup!r}; use one of {', '.join(CLEANUP_LEVELS)}.")
             length = int(self.headers.get("Content-Length") or 0)
             if length > MAX_BODY_BYTES:
                 raise ApiError(413, "too_large", "Audio is over 50 MB.")
             if length <= 0:
                 raise ApiError(400, "bad_request", "Send the audio as a WAV request body.")
-            return {"text": transcribe(self.rfile.read(length), language, self.client_address[0])}
+            return {"text": transcribe(self.rfile.read(length), language, cleanup, self.client_address[0])}
 
         def _respond(self, route: Callable[[], dict[str, object]]):
             try:

@@ -148,9 +148,9 @@ class ControlWindow(Gtk.ApplicationWindow):
             ),
             row("Run Whisper on", "GPU is ~6x faster. Restarts dictation.", picker(DEVICES, self.settings.device, self._on_device_changed)),
             row(
-                "Clean up dictation",
-                f"Remove fillers and fix grammar with {cleanup.CLEANUP_MODEL} on the GPU. Keeps it loaded (~5 GB VRAM).",
-                switch(self.settings.cleanup, self._on_cleanup_toggled),
+                "Rephrase dictation",
+                f"Low only drops ums. Medium and High rephrase with {cleanup.CLEANUP_MODEL} on the GPU (~5 GB VRAM). Your Mac picks its own level.",
+                picker(cleanup.LEVEL_TITLES, self.settings.cleanup, self._on_cleanup_changed),
             ),
             row(
                 "Serve other machines",
@@ -209,9 +209,9 @@ class ControlWindow(Gtk.ApplicationWindow):
         self.settings = save_setting("device", device)
         self._restart_if_running()
 
-    def _on_cleanup_toggled(self, enabled: bool):
-        self.settings = save_setting("cleanup", enabled)
-        cleanup.set_loaded(enabled and bool(running_pid()))
+    def _on_cleanup_changed(self, level: str):
+        self.settings = save_setting("cleanup", level)
+        cleanup.set_loaded(cleanup.uses_model(level) and bool(running_pid()))
 
     def _on_serve_toggled(self, enabled: bool):
         self.settings = save_setting("serve", enabled)

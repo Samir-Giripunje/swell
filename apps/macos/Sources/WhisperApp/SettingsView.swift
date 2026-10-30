@@ -91,6 +91,24 @@ struct EngineSettingsView: View {
                 EngineFooter(state: state) { isAddingMachine = true }
             }
 
+            if !state.machines.isEmpty {
+                Section {
+                    Picker("Rephrasing", selection: $state.rephraseLevel) {
+                        ForEach(RephraseLevel.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    Text(state.rephraseLevel.detail).font(.caption).foregroundStyle(.secondary)
+                } header: {
+                    Text("Rephrasing")
+                } footer: {
+                    Text(state.selectedMachine.map { "Done by \($0.name). When this Mac transcribes, text isn't rephrased." }
+                        ?? "Done by your machine, so it applies only when a machine transcribes.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             Section {
                 ForEach(WhisperModel.all) { ModelRow(model: $0, state: state) }
             } header: {

@@ -7,11 +7,32 @@ struct HostHealth: Codable, Equatable {
     let name: String
     let model: String
     let device: String
-    let cleanup: Bool
+    /// The host's own rephrasing level. This Mac sends its level with each request instead.
+    let cleanup: RephraseLevel
 
     var summary: String {
-        let hardware = device == "cuda" ? "GPU" : "CPU"
-        return "\(model) on \(hardware)" + (cleanup ? " · cleanup on" : "")
+        "\(model) on \(device == "cuda" ? "GPU" : "CPU")"
+    }
+}
+
+/// How much a host rephrases the transcript before replying: the `cleanup` query parameter.
+enum RephraseLevel: String, Codable, CaseIterable, Identifiable {
+    case off
+    case low
+    case medium
+    case high
+
+    var id: String { rawValue }
+
+    var title: String { rawValue.capitalized }
+
+    var detail: String {
+        switch self {
+        case .off: "Exactly what Whisper heard."
+        case .low: "Drops um, uh and hmm. Every other word stays as you said it."
+        case .medium: "Also removes false starts, repeats and filler phrases like \"you know\"."
+        case .high: "Rewrites into clear, well-formed sentences. Fixes grammar; never adds content."
+        }
     }
 }
 
@@ -105,8 +126,11 @@ struct HostClient {
         try await send(request("v1/health", timeout: timeout))
     }
 
-    func transcribe(_ samples: [Float], language: DictationLanguage, timeout: TimeInterval) async throws -> String {
-        var request = request("v1/transcribe", timeout: timeout, query: [URLQueryItem(name: "language", value: language.hostCode)])
+    func transcribe(_ samples: [Float], language: DictationLanguage, rephrase: RephraseLevel, timeout: TimeInterval) async throws -> String {
+        var request = request("v1/transcribe", timeout: timeout, query: [
+            URLQueryItem(name: "language", value: language.hostCode),
+            URLQueryItem(name: "cleanup", value: rephrase.rawValue),
+        ])
         request.httpMethod = "POST"
         request.setValue("audio/wav", forHTTPHeaderField: "Content-Type")
         request.httpBody = WAVEncoder.encode(samples, sampleRate: Int(AudioRecorder.sampleRate))

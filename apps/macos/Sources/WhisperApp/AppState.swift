@@ -41,6 +41,7 @@ final class AppState: ObservableObject {
         static let microphoneUID = "microphoneUID"
         static let selectedModel = "selectedModel"
         static let engine = "engine"
+        static let rephraseLevel = "rephraseLevel"
         static let legacyModelFolder = "cachedModelFolder"
     }
 
@@ -69,6 +70,10 @@ final class AppState: ObservableObject {
 
     @Published var engine: Engine {
         didSet { UserDefaults.standard.set(engine.rawValue, forKey: Keys.engine) }
+    }
+    /// Applied by a machine; this Mac's own model doesn't rephrase.
+    @Published var rephraseLevel: RephraseLevel {
+        didSet { UserDefaults.standard.set(rephraseLevel.rawValue, forKey: Keys.rephraseLevel) }
     }
     @Published private(set) var machines = MachineStore.load()
     @Published private(set) var machineStatus: [UUID: MachineStatus] = [:]
@@ -111,6 +116,7 @@ final class AppState: ObservableObject {
         microphoneUID = defaults.string(forKey: Keys.microphoneUID) ?? AudioDevices.builtInInput()?.uid ?? ""
         selectedModelID = WhisperModel.with(id: defaults.string(forKey: Keys.selectedModel) ?? "").id
         engine = Engine(rawValue: defaults.string(forKey: Keys.engine) ?? "")
+        rephraseLevel = RephraseLevel(rawValue: defaults.string(forKey: Keys.rephraseLevel) ?? "") ?? .medium
         Self.adoptLegacyTinyDownload()
         downloadedModelIDs = Set(WhisperModel.all.filter(ModelStore.isDownloaded).map(\.id))
         if case .machine(let id) = engine, !machines.contains(where: { $0.id == id }) { engine = .onDevice }
@@ -412,7 +418,7 @@ final class AppState: ObservableObject {
             transcribingMachineName = machine.name
             do {
                 machineStatus[machine.id] = try await probe.value
-                return try await client.transcribe(samples, language: language, timeout: Self.remoteTimeout(forSamples: samples.count))
+                return try await client.transcribe(samples, language: language, rephrase: rephraseLevel, timeout: Self.remoteTimeout(forSamples: samples.count))
             } catch {
                 machineStatus[machine.id] = .offline(error.localizedDescription)
                 Self.log.error("\(machine.name, privacy: .public) failed, transcribing on this Mac: \(error.localizedDescription, privacy: .public)")
