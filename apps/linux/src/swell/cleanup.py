@@ -35,7 +35,7 @@ class Level:
 
 PROMPTS = {
     "medium": Level(
-        instructions="""Output the same message with filler words (um, uh, like, you know, basically, I mean) removed, repeated phrases and false starts removed, and punctuation and capitalisation fixed. Keep every request, question, number and detail, in the speaker's own words and voice. Output only the edited message.""",
+        instructions="""Output the same message with filler words (um, uh, like, you know, basically) removed, repeated phrases and false starts removed, and punctuation and capitalisation fixed. When the speaker takes something back and replaces it (I mean, actually, no wait, sorry, scratch that), keep only the corrected version. Words like "I mean it" or "actually" that take nothing back stay. Keep every request, question, number and detail, in the speaker's own words and voice. Output only the edited message.""",
         examples=(
             (
                 "um so can you like check why the the build is failing on stage? I mean the docker one",
@@ -50,7 +50,7 @@ PROMPTS = {
         word_ratio=(0.35, 1.3),
     ),
     "high": Level(
-        instructions="""Rewrite the message as clear, well-formed written English: remove fillers, false starts and repetition, fix grammar and word order, split run-on sentences, and use proper punctuation. Keep the speaker's meaning and voice (first person stays first person) and keep every request, question, number, name and detail. Never add information, greetings or sign-offs. Output only the rewritten message.""",
+        instructions="""Rewrite the message as clear, well-formed written English: remove fillers, false starts and repetition, fix grammar and word order, split run-on sentences, and use proper punctuation. Keep the speaker's meaning and voice (first person stays first person) and keep every request, question, number, name and detail. When the speaker corrects themselves (I mean, actually, no wait, sorry, scratch that), keep only the corrected version, never the one they took back. Words like "I mean it" or "actually" that take nothing back stay, and the meaning of every sentence stays exactly the same. Never add information, greetings or sign-offs. Output only the rewritten message.""",
         examples=(
             (
                 "um so can you like check why the the build is failing on stage? I mean the docker one",
@@ -61,6 +61,14 @@ PROMPTS = {
                 "The results were mostly good, but the ranking still struggles with very short queries. I think we need to compare it with the baseline next week.",
             ),
             ("please go ahead and raise the PR and you know add Claude as reviewer", "Please raise the PR and add Claude as a reviewer."),
+            (
+                "the outage was caused by the cache, scratch that, by the expired certificate on the gateway",
+                "The outage was caused by the expired certificate on the gateway.",
+            ),
+            (
+                "can you pick up milk, eggs and bread on the way, actually skip the eggs, we still have a dozen",
+                "Can you pick up milk and bread on the way? We still have a dozen eggs.",
+            ),
         ),
         word_ratio=(0.3, 1.4),
     ),

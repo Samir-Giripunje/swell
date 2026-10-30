@@ -42,6 +42,8 @@ Query:
 
 The host keeps the original transcript when its model fails, or strays too far from what was said.
 
+Medium and High keep only the corrected version when the speaker takes something back ("six, I mean six thirty"). `fixtures/correction-evals.json` checks this against a real model (`apps/linux/scripts/eval_rephrasing.py`).
+
 ```json
 {"text": "Can you check why the Docker build is failing on stage?"}
 ```
