@@ -31,6 +31,8 @@ cp .build/arm64-apple-macosx/release/WhisperApp "$APP/Contents/MacOS/"
 cp Resources/Info.plist "$APP/Contents/"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" -c "Set :CFBundleVersion $BUILD_NUMBER" "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+# The rephrasing prompts the Linux host uses, so this Mac rephrases the same way on its own.
+cp ../../packages/protocol/fixtures/rephrasing.json "$APP/Contents/Resources/"
 # A stable certificate keeps macOS Microphone/Accessibility grants across rebuilds;
 # ad-hoc signatures change every build and macOS resets the permissions.
 SIGNING_IDENTITY="Whisper Local Signing"

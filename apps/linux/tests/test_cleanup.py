@@ -1,6 +1,12 @@
 import pytest
 
+from conftest import protocol_fixture
 from swell import cleanup
+
+
+def test_shared_fixture_matches_the_prompts():
+    # The Mac rephrases on-device from this fixture; regenerate it with `python -m swell.cleanup` after editing a prompt.
+    assert protocol_fixture("rephrasing.json") == cleanup.exported()
 
 
 @pytest.mark.parametrize(
@@ -35,13 +41,7 @@ def test_each_level_has_its_own_instructions_and_examples(level):
     [
         ("um yes the build passed", "off", "um yes the build passed"),
         ("Um yes", "high", "Um yes"),
-        (
-            "Um, so, can you like check why the build is failing? Uh, the results was good.",
-            "low",
-            "So, can you like check why the build is failing? The results was good.",
-        ),
-        ("We need, uhm, the umbrella and the hummus. Hmm. Erm, okay.", "low", "We need the umbrella and the hummus. Okay."),
-        ("It fails at the uh test step. Um.", "low", "It fails at the test step."),
+        *[(text, "low", expected) for text, expected in cleanup.exported()["low_cases"]],
     ],
 )
 def test_off_low_and_short_text_skip_the_model(monkeypatch, text, level, expected):

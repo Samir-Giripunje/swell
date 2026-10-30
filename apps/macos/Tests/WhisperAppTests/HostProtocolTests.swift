@@ -184,3 +184,33 @@ private final class StubProtocol: URLProtocol, @unchecked Sendable {
         #expect(String(WordDiff.highlighted(rewritten, comparedTo: "hey team i checked the logs").characters) == rewritten)
     }
 }
+
+@Suite struct OnDeviceRephraserTests {
+    private let prompts: RephrasingPrompts = {
+        try! RephrasingPrompts.load(from: fixtures.appendingPathComponent("rephrasing.json"))
+    }()
+
+    // The Linux host strips fillers with the same pattern; these cases come from its fixture.
+    @Test func lowDropsFillersLikeTheHost() {
+        #expect(!prompts.lowCases.isEmpty)
+        for testCase in prompts.lowCases {
+            #expect(OnDeviceRephraser.withoutFillers(testCase[0], prompts: prompts) == testCase[1])
+        }
+    }
+
+    @Test func everyModelLevelHasAPrompt() {
+        #expect(Set(prompts.dictation.levels.keys) == ["medium", "high"])
+        #expect(Set(prompts.text.levels.keys) == ["low", "medium", "high"])
+    }
+
+    @Test(arguments: [
+        (result: "Can you check why the build fails?", accepted: true),
+        (result: "Sure! Here is a short joke about Kubernetes, since you asked for one: why did the pod go to the doctor?", accepted: false),
+        (result: "Check.", accepted: false),
+        (result: "", accepted: false),
+    ])
+    func rejectsRewritesThatStray(result: String, accepted: Bool) {
+        let original = "um so can you check why the the build is failing on stage"
+        #expect(OnDeviceRephraser.accepted(original, result, wordRatio: [0.35, 1.3], minWords: prompts.minWords) == accepted)
+    }
+}

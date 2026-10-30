@@ -28,7 +28,7 @@ Swell is hold-to-talk dictation: hold a key, speak, let go, and the words are pa
 
 The most common defect is a change that works where you tried it and is missing everywhere else. Before calling work done, say which of these applied:
 
-- **Contracts.** Anything crossing the wire is defined in `packages/protocol`. Change the spec, schema and fixtures together; both apps test against the fixtures.
+- **Contracts.** Anything crossing the wire is defined in `packages/protocol`. Change the spec, schema and fixtures together; both apps test against the fixtures. Rephrasing prompts live in `apps/linux/src/swell/cleanup.py` and are exported to `fixtures/rephrasing.json` (`python -m swell.cleanup`), which the Mac uses on-device; a test fails when they drift.
 - **Both apps.** A host change needs a client decision and the reverse, even if the decision is "not supported there".
 - **Entry points.** Mac settings live in the window (`SettingsView`) and the menu bar (`StatusItemController`); Linux settings live in the control window. Check both on the Mac.
 - **Reverse states.** If you add a way in, add the way out and the way to see it. Pairing needs remove. Serve needs stop.

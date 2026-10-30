@@ -71,7 +71,7 @@ final class AppState: ObservableObject {
     @Published var engine: Engine {
         didSet { UserDefaults.standard.set(engine.rawValue, forKey: Keys.engine) }
     }
-    /// Applied by a machine; this Mac's own model doesn't rephrase.
+    /// Applied by the machine that transcribes, or by Apple's on-device model when this Mac does.
     @Published var rephraseLevel: RephraseLevel {
         didSet { UserDefaults.standard.set(rephraseLevel.rawValue, forKey: Keys.rephraseLevel) }
     }
@@ -427,7 +427,13 @@ final class AppState: ObservableObject {
         }
         if loadedModelID == nil { await loadModel() }
         guard loadedModelID != nil else { throw TranscriptionError.modelNotLoaded }
-        return try await transcriber.transcribe(samples, language: language)
+        let text = try await transcriber.transcribe(samples, language: language)
+        // No machine did this one, so rephrase here: Low is a word list, Medium and High use Apple's on-device model.
+        guard rephraseLevel != .off, !text.isEmpty else { return text }
+        let start = Date()
+        let rephrased = await OnDeviceRephraser.cleaned(text, level: rephraseLevel)
+        Self.log.notice("Rephrased on this Mac (\(self.rephraseLevel.rawValue, privacy: .public)) in \(Date().timeIntervalSince(start), format: .fixed(precision: 2))s, changed: \(rephrased != text)")
+        return rephrased
     }
 
     // Generous: the host transcribes and then cleans up the text with a language model.
