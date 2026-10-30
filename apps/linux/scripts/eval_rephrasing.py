@@ -8,6 +8,7 @@ Needs Ollama running with the cleanup model. Prints every failure and a pass cou
 import json
 import re
 import sys
+import time
 from pathlib import Path
 
 from swell import cleanup
@@ -24,13 +25,14 @@ def main(modes: list[str]):
     cases = json.loads(EVALS.read_text())["cases"]
     for mode in modes:
         passed = 0
+        started = time.time()
         for case in cases:
             result = cleanup.cleaned(case["text"], None, mode)
             problems = failures(case, result)
             passed += not problems
             if problems:
                 print(f"[{mode}] FAIL {case['text']!r}\n        -> {result!r}\n        {'; '.join(problems)}")
-        print(f"{mode}: {passed}/{len(cases)} passed")
+        print(f"{mode} on {cleanup.cleanup_model()}: {passed}/{len(cases)} passed, {(time.time() - started) / len(cases):.1f}s each")
 
 
 if __name__ == "__main__":

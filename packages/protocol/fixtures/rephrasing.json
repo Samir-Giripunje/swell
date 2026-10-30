@@ -20,6 +20,10 @@
           [
             "please go ahead and raise the PR and you know add Claude as reviewer",
             "Please go ahead and raise the PR and add Claude as a reviewer."
+          ],
+          [
+            "the bug is in the parser, I mean the tokenizer, so check that first",
+            "The bug is in the tokenizer, so check that first."
           ]
         ],
         "word_ratio": [

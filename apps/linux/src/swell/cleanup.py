@@ -9,8 +9,24 @@ import threading
 import urllib.request
 from dataclasses import dataclass
 
+from swell.hardware import has_nvidia_gpu
+
 OLLAMA_CHAT_URL = "http://localhost:11434/api/chat"
-CLEANUP_MODEL = "qwen2.5:7b"
+# With an NVIDIA GPU, the 7B model answers in under a second. Without one, the 1.7B model runs on the CPU in a few
+# seconds and fits a 16 GB machine; it's slower, so its calls get more time.
+GPU_MODEL = "qwen2.5:7b"
+CPU_MODEL = "qwen3:1.7b"
+CPU_SLOWDOWN = 4
+
+
+def cleanup_model() -> str:
+    return GPU_MODEL if has_nvidia_gpu() else CPU_MODEL
+
+
+def _patience() -> float:
+    return 1 if has_nvidia_gpu() else CPU_SLOWDOWN
+
+
 LEVELS = ("off", "low", "medium", "high")
 LEVEL_TITLES = {"off": "Off", "low": "Low · drop ums", "medium": "Medium · tidy", "high": "High · polished"}
 # Low is a word list, not the model: asked to only drop fillers, the model also fixes grammar.
@@ -46,6 +62,7 @@ PROMPTS = {
                 "I took 500 documents from RDS and ran the eval on them. Does that make sense?",
             ),
             ("please go ahead and raise the PR and you know add Claude as reviewer", "Please go ahead and raise the PR and add Claude as a reviewer."),
+            ("the bug is in the parser, I mean the tokenizer, so check that first", "The bug is in the tokenizer, so check that first."),
         ),
         word_ratio=(0.35, 1.3),
     ),
@@ -76,13 +93,11 @@ PROMPTS = {
 
 
 def _chat(messages: list[dict[str, str]], timeout: float, keep_alive: int = -1) -> str:
-    body = {
-        "model": CLEANUP_MODEL,
-        "stream": False,
-        "keep_alive": keep_alive,
-        "messages": messages,
-        "options": {"temperature": 0, "num_ctx": 2048, "num_predict": 600},
-    }
+    options = {"temperature": 0, "num_ctx": 2048, "num_predict": 600}
+    if not has_nvidia_gpu():
+        options["num_gpu"] = 0
+    # Qwen3 thinks out loud before answering unless told not to; other models ignore the flag.
+    body = {"model": cleanup_model(), "stream": False, "think": False, "keep_alive": keep_alive, "messages": messages, "options": options}
     request = urllib.request.Request(OLLAMA_CHAT_URL, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.load(response)["message"]["content"].strip()
@@ -94,7 +109,7 @@ def set_loaded(loaded: bool):
     def run():
         try:
             _chat([], timeout=60, keep_alive=-1 if loaded else 0)
-            print(f"cleanup model {CLEANUP_MODEL} {'loaded' if loaded else 'unloaded'}", flush=True)
+            print(f"cleanup model {cleanup_model()} {'loaded' if loaded else 'unloaded'}", flush=True)
         except OSError as error:
             print(f"cleanup model {'load' if loaded else 'unload'} failed: {error!r}", flush=True)
 
@@ -133,7 +148,7 @@ def cleaned(text: str, vocab: str | None, level: str) -> str:
     if not uses_model(level) or words < MIN_WORDS:
         return text
     try:
-        result = _chat(messages(text, vocab, level), timeout=2 + words / 40)
+        result = _chat(messages(text, vocab, level), timeout=(2 + words / 40) * _patience())
     except (OSError, ValueError, KeyError) as error:
         print(f"cleanup failed, keeping raw text: {error!r}", flush=True)
         return text
@@ -192,9 +207,9 @@ def corrected(text: str, vocab: str | None, level: str) -> str:
     words = len(text.split())
     try:
         # Loading the model takes a few seconds the first time; correcting is interactive, so allow for it.
-        result = _chat(conversation, timeout=30 + words / 20)
+        result = _chat(conversation, timeout=30 + words / 20 * _patience())
     except (OSError, ValueError, KeyError) as error:
-        raise CorrectionError(f"The host's language model ({CLEANUP_MODEL}) didn't answer. Check that Ollama is running there.") from error
+        raise CorrectionError(f"The host's language model ({cleanup_model()}) didn't answer. Check that Ollama is running there.") from error
     low, high = prompt.word_ratio
     # Ratios are noise on a few words, so only guard longer text.
     if not result or (words >= MIN_WORDS and not low <= len(result.split()) / words <= high):

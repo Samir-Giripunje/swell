@@ -11,6 +11,7 @@ from pynput import keyboard
 from swell import cleanup, server, writer
 from swell.audio import SAMPLE_RATE, Recorder, Transcriber, decode_wav
 from swell.desktop import copied_text, paste
+from swell.hardware import has_nvidia_gpu
 from swell.overlay import Overlay
 from swell.settings import SERVER_PORT, STATUS_FILE, load_settings, server_token, vocab
 
@@ -44,8 +45,9 @@ class App:
     def _load_model(self):
         settings = load_settings()
         started = time.time()
-        STATUS_FILE.write_text(f"loading {self.model} on {settings.device}")
-        self.transcriber = Transcriber(self.model, settings.device, vocab())
+        device = settings.device if has_nvidia_gpu() else "cpu"
+        STATUS_FILE.write_text(f"loading {self.model} on {device}")
+        self.transcriber = Transcriber(self.model, device, vocab())
         if cleanup.uses_model(settings.cleanup):
             cleanup.set_loaded(True)
         if settings.serve:
