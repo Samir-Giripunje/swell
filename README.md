@@ -25,7 +25,7 @@ Swell comes for **macOS** and **Linux**. A Linux PC with a GPU can also transcri
 - **Hold-to-talk anywhere** — right ⌘ (or right ⌥) in any app; text is pasted at the cursor and your clipboard is restored.
 - **Animated on-screen pill** while you speak and while it transcribes.
 - **Choose your model** — download, switch and delete Whisper models in the app.
-- **Live dictation** — words are typed as you speak and the last word or two is fixed as Swell hears more, like macOS and Gboard dictation. Uses Apple's speech recognition on your Mac (macOS 26); clicking or switching apps stops it and puts the full text on the clipboard. Polish the result with **⌃⌥R**.
+- **Rambler (live dictation)** — words are typed as you speak and the last word or two is fixed as Swell hears more, like macOS and Gboard dictation. Runs on your Mac with Apple's speech model (macOS 26), so paired machines and rephrasing are set aside while it's on; clicking or switching apps stops it and puts the full text on the clipboard. Polish the result with **⌃⌥R**.
 - **Correct any text** — select text anywhere and press **⌃⌥R**. Your machine rewrites it at your Rephrasing level, a popover under the menu bar icon highlights what changed, and **Replace** (or Return) swaps it in. With no machine, or when it's asleep, Apple Intelligence does it on your Mac (macOS 26).
 - **Use a more powerful machine** — send your speech to Swell on a Linux PC with a GPU over Tailscale, for a bigger model at the same speed. If it's asleep, your Mac transcribes instead.
 - **Lives in the menu bar** — in the Dock and ⌘Tab only while its window is open; quit from the menu bar icon.

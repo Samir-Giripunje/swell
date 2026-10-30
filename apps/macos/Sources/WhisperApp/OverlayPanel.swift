@@ -76,6 +76,12 @@ struct OverlayView: View {
             case .recording:
                 RecordingDot()
                 WaveformBars(meter: state.meter)
+                if state.liveDictation {
+                    Text("This Mac")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .fixedSize()
+                }
             case .transcribing:
                 ThinkingDots()
                 if let machine = state.transcribingMachineName {

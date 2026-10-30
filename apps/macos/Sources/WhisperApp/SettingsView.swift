@@ -76,6 +76,16 @@ struct EngineSettingsView: View {
 
     var body: some View {
         Form {
+            if state.liveDictation {
+                Section {
+                    Label(
+                        "Rambler is on, so this Mac transcribes as you speak. Your machines and rephrasing are used again when you turn it off in General.",
+                        systemImage: "waveform.badge.mic"
+                    )
+                    .font(.callout)
+                }
+            }
+
             Section {
                 EngineRow(
                     title: "This Mac",
@@ -91,6 +101,8 @@ struct EngineSettingsView: View {
             } footer: {
                 EngineFooter(state: state) { isAddingMachine = true }
             }
+            // Kept as they are, not changed: turning Rambler off brings them straight back.
+            .disabled(state.liveDictation)
 
             Section {
                 Picker("Rephrasing", selection: $state.rephraseLevel) {
@@ -98,6 +110,7 @@ struct EngineSettingsView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                .disabled(state.liveDictation)
                 Text(state.rephraseLevel.detail).font(.caption).foregroundStyle(.secondary)
             } header: {
                 Text("Rephrasing")
@@ -475,7 +488,7 @@ private struct LiveDictationRow: View {
     var body: some View {
         Toggle(isOn: $state.liveDictation) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Live dictation")
+                Text("Rambler (live dictation)")
                 Text(detail).font(.caption).foregroundStyle(.secondary)
                 if let status = state.liveDictationStatus {
                     Text(status).font(.caption).foregroundStyle(.orange)
@@ -487,7 +500,7 @@ private struct LiveDictationRow: View {
 
     private var detail: String {
         if let reason = LiveDictationSession.unavailableReason { return reason }
-        return "Types as you speak and fixes the last word or two as it hears more, using Apple's speech recognition on this Mac. "
-            + "Machines and rephrasing are skipped; select the text and press \(CorrectionController.shortcutTitle) to polish it."
+        return "Types as you speak and fixes the last word or two as it hears more. Runs on this Mac with Apple's speech model, "
+            + "so your paired machines and rephrasing aren't used while it's on. Select the text and press \(CorrectionController.shortcutTitle) to polish it."
     }
 }
