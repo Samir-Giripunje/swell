@@ -13,6 +13,7 @@ gi.require_version("GdkX11", "3.0")
 from gi.repository import Gdk, GdkX11, GLib, Gtk  # noqa: E402
 
 from swell import cleanup  # noqa: E402
+from swell.hardware import has_nvidia_gpu  # noqa: E402
 from swell.pairing import this_machine_link  # noqa: E402
 from swell.settings import (  # noqa: E402
     AUTOSTART_FILE,
@@ -146,18 +147,32 @@ class ControlWindow(Gtk.ApplicationWindow):
                 picker(MODELS, self.settings.startup_model, self._on_startup_model_changed),
                 switch(AUTOSTART_FILE.exists(), self._on_startup_toggled),
             ),
-            row("Run Whisper on", "GPU is ~6x faster. Restarts dictation.", picker(DEVICES, self.settings.device, self._on_device_changed)),
             row(
                 "Rephrase dictation",
-                f"Low only drops ums. Medium and High rephrase with {cleanup.CLEANUP_MODEL} on the GPU (~5 GB VRAM). Your Mac picks its own level.",
+                f"Low only drops ums. Medium and High rephrase with {cleanup.cleanup_model()} "
+                + ("on the GPU (~5 GB VRAM)." if has_nvidia_gpu() else "on the CPU (~2 GB RAM, a few seconds each).")
+                + ("" if not self.settings.serve else " Your Mac picks its own level."),
                 picker(cleanup.LEVEL_TITLES, self.settings.cleanup, self._on_cleanup_changed),
             ),
+        )
+        # Most people use one computer, so the GPU choice and serving other machines wait under Advanced.
+        advanced_rows = [
             row(
                 "Serve other machines",
-                "Let Swell on your other machines transcribe here over Tailscale. Restarts dictation.",
+                "Let Swell on your Mac or another PC transcribe on this computer over Tailscale. Restarts dictation.",
                 switch(self.settings.serve, self._on_serve_toggled),
+                button("Copy pairing link", self._on_copy_pairing_link),
             ),
-        )
+        ]
+        if has_nvidia_gpu():
+            advanced_rows.insert(
+                0, row("Run Whisper on", "GPU is ~6x faster. Restarts dictation.", picker(DEVICES, self.settings.device, self._on_device_changed))
+            )
+        advanced_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18, margin_top=12)
+        for widget in advanced_rows:
+            advanced_box.pack_start(widget, False, False, 0)
+        advanced = Gtk.Expander(label="Advanced", expanded=self.settings.serve)
+        advanced.add(advanced_box)
         self.status_label = Gtk.Label(xalign=0, selectable=True, wrap=True)
         hint = Gtk.Label(
             label="Hold Right Ctrl to dictate. Copy text (Ctrl+C), click the input box, then hold Right Alt and say what to write.",
@@ -169,12 +184,11 @@ class ControlWindow(Gtk.ApplicationWindow):
         for widget in (
             button("Open log", lambda: subprocess.Popen(["xdg-open", str(LOG_FILE)])),
             button("Edit writer prompt", lambda: subprocess.Popen(["xdg-open", str(WRITER_PROMPT_FILE)])),
-            button("Copy pairing link", self._on_copy_pairing_link),
         ):
             buttons.pack_start(widget, False, False, 0)
 
         layout = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18, margin=22)
-        for widget in (*rows, Gtk.Separator(), self.status_label, hint, buttons):
+        for widget in (*rows, advanced, Gtk.Separator(), self.status_label, hint, buttons):
             layout.pack_start(widget, False, False, 0)
         self.add(layout)
         self._refresh()

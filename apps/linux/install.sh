@@ -30,6 +30,15 @@ for file in settings.json server_token writer_prompt.md; do
     echo "Moved over $file from Whisper Dictation"
   fi
 done
+# Rephrasing (Medium, High, corrections) runs on Ollama: the 7B model on an NVIDIA GPU, the 1.7B one on the CPU.
+if nvidia-smi -L >/dev/null 2>&1; then CLEANUP_MODEL="qwen2.5:7b"; else CLEANUP_MODEL="qwen3:1.7b"; fi
+if command -v ollama >/dev/null 2>&1; then
+  ollama pull "$CLEANUP_MODEL" >/dev/null && echo "Rephrasing model ready: $CLEANUP_MODEL"
+else
+  echo "note: install Ollama for Medium/High rephrasing (Off and Low work without it):"
+  echo "  curl -fsSL https://ollama.com/install.sh | sh && ollama pull $CLEANUP_MODEL"
+fi
+
 if [ -e "$LEGACY_APP_DIR/vocab.txt" ] && [ ! -e "$CONFIG_DIR/vocab.txt" ]; then
   cp "$LEGACY_APP_DIR/vocab.txt" "$CONFIG_DIR/vocab.txt"
 fi
