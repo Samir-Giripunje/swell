@@ -67,6 +67,8 @@ final class HotkeyMonitor {
     }
 
     private func handle(_ event: NSEvent) {
+        // Live dictation types while the key is held; those keystrokes must not cancel it.
+        if SyntheticKeys.isOurs(event) { return }
         guard event.type == .flagsChanged, event.keyCode == hotkey.keyCode else {
             cancelIfHeld(by: event)
             return

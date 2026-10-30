@@ -214,3 +214,21 @@ private final class StubProtocol: URLProtocol, @unchecked Sendable {
         #expect(OnDeviceRephraser.accepted(original, result, wordRatio: [0.35, 1.3], minWords: prompts.minWords) == accepted)
     }
 }
+
+@Suite struct LiveEditTests {
+    @Test(arguments: [
+        (typed: "", text: "Can you", deletions: 0, insertion: "Can you"),
+        (typed: "Can you", text: "Can you check", deletions: 0, insertion: " check"),
+        (typed: "meet on their", text: "meet on there", deletions: 2, insertion: "re"),
+        (typed: "the build", text: "the build.", deletions: 0, insertion: "."),
+        (typed: "Um, so can you", text: "Um, so, can you", deletions: 8, insertion: ", can you"),
+        (typed: "same", text: "same", deletions: 0, insertion: ""),
+        (typed: "café ok", text: "café OK", deletions: 2, insertion: "OK"),
+    ])
+    func revisesOnlyTheTail(typed: String, text: String, deletions: Int, insertion: String) {
+        let edit = LiveEdit(from: typed, to: text)
+        #expect(edit == LiveEdit(deletions: deletions, insertion: insertion))
+        #expect(edit.deletions <= typed.count)
+        #expect(String(typed.dropLast(edit.deletions)) + edit.insertion == text)
+    }
+}

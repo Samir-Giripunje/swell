@@ -57,6 +57,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSPopoverDelegate {
             menu.addItem(engineItem("This Mac", engine: .onDevice))
             state.machines.forEach { menu.addItem(engineItem($0.name, engine: .machine($0.id))) }
         }
+        menu.addItem(item("Rambler (Live Dictation)", action: #selector(toggleLiveDictation), isOn: state.liveDictation))
         menu.addItem(rephraseMenu())
         let correct = item("Correct Selected Text", action: #selector(correctSelection), key: "r")
         correct.keyEquivalentModifierMask = [.control, .option]
@@ -131,6 +132,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     private func engineItem(_ title: String, engine: Engine) -> NSMenuItem {
         let item = item(title, action: #selector(selectEngine(_:)), isOn: state.engine == engine)
         item.representedObject = engine.rawValue
+        if state.liveDictation {
+            item.isEnabled = false
+            item.toolTip = "Rambler is on, so this Mac transcribes."
+        }
         return item
     }
 
@@ -143,6 +148,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSPopoverDelegate {
         }
         let parent = NSMenuItem(title: "Rephrasing: \(state.rephraseLevel.title)", action: nil, keyEquivalent: "")
         parent.submenu = submenu
+        parent.isEnabled = !state.liveDictation
         return parent
     }
 
@@ -179,6 +185,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, NSPopoverDelegate {
     @objc private func correctSelection() {
         DispatchQueue.main.async { [correction] in correction.start() }
     }
+
+    @objc private func toggleLiveDictation() { state.liveDictation.toggle() }
 
     @objc private func selectRephraseLevel(_ sender: NSMenuItem) {
         guard let rawValue = sender.representedObject as? String, let level = RephraseLevel(rawValue: rawValue) else { return }

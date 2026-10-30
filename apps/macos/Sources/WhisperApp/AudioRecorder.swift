@@ -32,6 +32,7 @@ final class AudioRecorder: @unchecked Sendable {
     private var engine = AVAudioEngine()
     private let lock = NSLock()
     private var samples: [Float] = []
+    private var streamHandler: (@Sendable ([Float]) -> Void)?
     private var pendingLevel: Float?
     private var isStartInFlight = false
     private let targetFormat = AVAudioFormat(
@@ -102,6 +103,15 @@ final class AudioRecorder: @unchecked Sendable {
         guard status == noErr else { throw AudioRecorderError.noInputDevice }
     }
 
+    /// Also hands the audio to `handler` as it arrives, starting with everything recorded so far, so
+    /// nothing said before live dictation was ready is lost. Stopping the recording ends the stream.
+    func stream(to handler: @escaping @Sendable ([Float]) -> Void) {
+        lock.withLock {
+            handler(samples)
+            streamHandler = handler
+        }
+    }
+
     /// Stops after the release tail, so the end of the last word is in the samples.
     func finish() async -> [Float] {
         if injectedSamples == nil { try? await Task.sleep(for: Self.releaseTail) }
@@ -112,7 +122,11 @@ final class AudioRecorder: @unchecked Sendable {
     func stop() -> [Float] {
         audioQueue.async { [self] in stopEngine() }
         defer { injectedSamples = nil }
-        return injectedSamples ?? lock.withLock { samples }
+        let recorded = lock.withLock {
+            streamHandler = nil
+            return samples
+        }
+        return injectedSamples ?? recorded
     }
 
     private func stopEngine() {
@@ -138,7 +152,10 @@ final class AudioRecorder: @unchecked Sendable {
 
         guard let channel = output.floatChannelData?[0], output.frameLength > 0 else { return }
         let chunk = Array(UnsafeBufferPointer(start: channel, count: Int(output.frameLength)))
-        lock.withLock { samples.append(contentsOf: chunk) }
+        lock.withLock {
+            samples.append(contentsOf: chunk)
+            streamHandler?(chunk)
+        }
         publishLevel(Self.normalizedLevel(of: chunk))
     }
 
